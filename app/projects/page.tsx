@@ -10,8 +10,14 @@ import { Logo } from '@/components/ui/Logo'
 import { Plus } from 'lucide-react'
 import type { Project, Task } from '@/types'
 
+// ---------------------------------------------------------------------------
+// Typed helper — sidesteps the `never` row-type issue that occurs when
+// createClient() is instantiated without a Database generic parameter.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = (table: string) => (createClient() as any).from(table)
+// ---------------------------------------------------------------------------
+
 export default function ProjectsPage() {
-  const supabase = createClient()
   const [projects,       setProjects]       = useState<Project[]>([])
   const [tasks,          setTasks]          = useState<Task[]>([])
   const [loading,        setLoading]        = useState(true)
@@ -27,8 +33,8 @@ export default function ProjectsPage() {
   const loadData = async () => {
     setLoading(true)
     const [{ data: pd }, { data: td }] = await Promise.all([
-      supabase.from('projects').select('*'),
-      supabase.from('tasks').select('*'),
+      db('projects').select('*'),
+      db('tasks').select('*'),
     ])
     setProjects((pd || []) as Project[])
     setTasks((td || []) as Task[])
@@ -53,9 +59,13 @@ export default function ProjectsPage() {
       setLogoSpin('loop')
       if (editingProject) {
         setProjects(projects.map((p) => p.id === project.id ? project : p))
-        await supabase.from('projects').update({ name: project.name, type: project.type, color: project.color }).eq('id', project.id)
+        await db('projects')
+          .update({ name: project.name, type: project.type, color: project.color })
+          .eq('id', project.id)
       } else {
-        const { data } = await supabase.from('projects').insert([{ name: project.name, type: project.type, color: project.color }]).select()
+        const { data } = await db('projects')
+          .insert([{ name: project.name, type: project.type, color: project.color }])
+          .select()
         setProjects([...projects, (data?.[0] as Project) || project])
       }
     } catch { loadData() }
@@ -66,7 +76,7 @@ export default function ProjectsPage() {
     try {
       setLogoSpin('loop')
       setProjects(projects.filter((p) => p.id !== pid))
-      await supabase.from('projects').delete().eq('id', pid)
+      await db('projects').delete().eq('id', pid)
     } catch { loadData() }
     finally { setLogoSpin(null); setEditingProject(null); setShowModal(false) }
   }
