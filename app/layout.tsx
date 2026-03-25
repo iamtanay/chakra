@@ -24,7 +24,9 @@ export const metadata: Metadata = {
   title: 'Chakra - Personal Work Telemetry',
   description: 'Track effort, energy, and time across all areas of life.',
   icons: {
-    icon: '/logo.svg',
+    icon: [
+      { url: '/logo.svg', type: 'image/svg+xml' },
+    ],
   },
 }
 
@@ -35,6 +37,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${spaceMono.variable} ${dmSans.variable} ${cinzel.variable}`}>
+      <head>
+        <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+      </head>
       <body className="bg-chakra-bg text-chakra-text antialiased">
         {children}
       </body>
