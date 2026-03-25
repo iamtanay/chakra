@@ -15,9 +15,16 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { Plus } from 'lucide-react'
 import type { Task, Project, Status } from '@/types'
 
+// ---------------------------------------------------------------------------
+// Typed helper — sidesteps the `never` row-type issue that occurs when
+// createClient() is instantiated without a Database generic parameter.
+// Using `any` here is intentional and scoped only to this one abstraction.
+// ---------------------------------------------------------------------------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = (table: string) => (createClient() as any).from(table)
+
 export default function BoardPage() {
-  const supabase  = createClient()
-  const isMobile  = useMediaQuery('(max-width: 768px)')
+  const isMobile = useMediaQuery('(max-width: 768px)')
 
   const [tasks,             setTasks]             = useState<Task[]>([])
   const [projects,          setProjects]          = useState<Project[]>([])
@@ -40,8 +47,8 @@ export default function BoardPage() {
     try {
       setLoading(true)
       const [{ data: pd, error: pe }, { data: td, error: te }] = await Promise.all([
-        supabase.from('projects').select('*'),
-        supabase.from('tasks').select('*'),
+        db('projects').select('*'),
+        db('tasks').select('*'),
       ])
       if (pe) throw pe
       if (te) throw te
@@ -59,6 +66,8 @@ export default function BoardPage() {
     return tasks.filter((t) => t.project_id === selectedProjectId)
   }, [tasks, selectedProjectId])
 
+  // ── Modal helpers ──────────────────────────────────────────────────────────
+
   const openCreateModal = (status: Status = 'Todo') => {
     setEditingTask(null)
     setDefaultStatus(status)
@@ -75,11 +84,12 @@ export default function BoardPage() {
     setEditingTask(null)
   }
 
+  // ── CRUD handlers ──────────────────────────────────────────────────────────
+
   const handleTaskCreate = async (data: NewTaskData) => {
     try {
       setLogoSpin('loop')
-      const { data: inserted, error } = await supabase
-        .from('tasks')
+      const { data: inserted, error } = await db('tasks')
         .insert([{
           title:           data.title,
           description:     data.description,
@@ -112,7 +122,7 @@ export default function BoardPage() {
       setLogoSpin('loop')
       setTasks((prev) => prev.map((t) => t.id === updatedTask.id ? updatedTask : t))
       const { actual_hours, completed_at, ...updateData } = updatedTask
-      await supabase.from('tasks').update(updateData).eq('id', updatedTask.id)
+      await db('tasks').update(updateData).eq('id', updatedTask.id)
       setLogoSpin(null)
     } catch (err) {
       console.error('Error saving task:', err)
@@ -125,7 +135,7 @@ export default function BoardPage() {
     try {
       setLogoSpin('loop')
       setTasks((prev) => prev.filter((t) => t.id !== taskId))
-      await supabase.from('tasks').delete().eq('id', taskId)
+      await db('tasks').delete().eq('id', taskId)
       setLogoSpin(null)
     } catch (err) {
       console.error('Error deleting task:', err)
@@ -137,8 +147,12 @@ export default function BoardPage() {
   const handleStatusChange = async (taskId: string, newStatus: Status) => {
     try {
       setLogoSpin('loop')
-      setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: newStatus, completed_at: null } : t))
-      await supabase.from('tasks').update({ status: newStatus, completed_at: null, actual_hours: null }).eq('id', taskId)
+      setTasks((prev) =>
+        prev.map((t) => t.id === taskId ? { ...t, status: newStatus, completed_at: null } : t)
+      )
+      await db('tasks')
+        .update({ status: newStatus, completed_at: null, actual_hours: null })
+        .eq('id', taskId)
       setLogoSpin(null)
     } catch (err) {
       console.error('Error updating status:', err)
@@ -153,9 +167,17 @@ export default function BoardPage() {
     if (!completingTask) return
     try {
       setLogoSpin('loop')
-      const updated: Task = { ...completingTask, status: 'Done', actual_hours: hours, completed_at: new Date().toISOString() }
+      const now = new Date().toISOString()
+      const updated: Task = {
+        ...completingTask,
+        status:       'Done',
+        actual_hours: hours,
+        completed_at: now,
+      }
       setTasks((prev) => prev.map((t) => t.id === completingTask.id ? updated : t))
-      await supabase.from('tasks').update({ status: 'Done', actual_hours: hours, completed_at: new Date().toISOString() }).eq('id', completingTask.id)
+      await db('tasks')
+        .update({ status: 'Done', actual_hours: hours, completed_at: now })
+        .eq('id', completingTask.id)
       setLogoSpin('fast')
       setTimeout(() => setLogoSpin(null), 400)
     } catch (err) {
@@ -169,13 +191,17 @@ export default function BoardPage() {
 
   const handleTodayToggle = async (task: Task) => {
     try {
-      setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, today_flag: !t.today_flag } : t))
-      await supabase.from('tasks').update({ today_flag: !task.today_flag }).eq('id', task.id)
+      setTasks((prev) =>
+        prev.map((t) => t.id === task.id ? { ...t, today_flag: !t.today_flag } : t)
+      )
+      await db('tasks').update({ today_flag: !task.today_flag }).eq('id', task.id)
     } catch (err) {
       console.error('Error toggling today:', err)
       loadData()
     }
   }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -198,7 +224,7 @@ export default function BoardPage() {
       <div className="flex-1 md:ml-[var(--sidebar-w)] flex flex-col pb-14 md:pb-0 overflow-hidden">
         <div className="flex-shrink-0">
 
-          {/* ── Mobile top bar — silent luxury ── */}
+          {/* ── Mobile top bar ── */}
           <div
             className="md:hidden flex items-center justify-between px-4 py-3"
             style={{
@@ -206,7 +232,6 @@ export default function BoardPage() {
               background: 'linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%)',
             }}
           >
-            {/* Left: logo + wordmark */}
             <div className="flex items-center gap-2.5">
               <Logo size={24} spin={logoSpin} />
               <span
@@ -224,7 +249,6 @@ export default function BoardPage() {
               </span>
             </div>
 
-            {/* Right: project switcher */}
             {hasProjects && (
               <ProjectSwitcher
                 projects={projects}
@@ -263,7 +287,7 @@ export default function BoardPage() {
           )}
         </div>
 
-        {/* Board area */}
+        {/* ── Board area ── */}
         <div className="flex-1 overflow-auto p-4 md:p-6">
           {!hasProjects ? (
             <div className="flex flex-col items-center justify-center h-full gap-4">
