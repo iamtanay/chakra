@@ -34,13 +34,17 @@ export function MobileBoard({
   const col = tasks.filter((t) => t.status === activeStatus)
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX
-    touchStartY.current = e.touches[0].clientY
+    const touch = e.touches[0]
+    if (!touch) return
+    touchStartX.current = touch.clientX
+    touchStartY.current = touch.clientY
   }
 
   const handleTouchMove = (e: React.TouchEvent, taskId: string) => {
-    const dx = e.touches[0].clientX - touchStartX.current
-    const dy = e.touches[0].clientY - touchStartY.current
+    const touch = e.touches[0]
+    if (!touch) return
+    const dx = touch.clientX - touchStartX.current
+    const dy = touch.clientY - touchStartY.current
     if (Math.abs(dx) > Math.abs(dy)) {
       e.preventDefault()
       setSwipeState({ taskId, distance: dx })
@@ -53,11 +57,11 @@ export function MobileBoard({
       const task = tasks.find((t) => t.id === taskId)
       if (task) {
         if (dist > 0) {
-          if (activeStatus === 'Todo') onStatusChange(taskId, 'In Progress')
+          if (activeStatus === 'Todo')        onStatusChange(taskId, 'In Progress')
           else if (activeStatus === 'In Progress') onComplete(task)
         } else {
           if (activeStatus === 'In Progress') onStatusChange(taskId, 'Todo')
-          else if (activeStatus === 'Done')    onStatusChange(taskId, 'In Progress')
+          else if (activeStatus === 'Done')   onStatusChange(taskId, 'In Progress')
         }
       }
     }
@@ -109,9 +113,9 @@ export function MobileBoard({
         ) : (
           <>
             {col.map((task) => {
-              const swiping   = swipeState?.taskId === task.id
-              const dist      = swiping ? swipeState!.distance : 0
-              const pct       = Math.min(Math.abs(dist) / 72, 1)
+              const swiping    = swipeState?.taskId === task.id
+              const dist       = swiping ? swipeState!.distance : 0
+              const pct        = Math.min(Math.abs(dist) / 72, 1)
               const rightSwipe = dist > 0
               const hintColor  = rightSwipe
                 ? (activeStatus === 'Todo' ? 'var(--col-wip)' : 'var(--col-done)')
