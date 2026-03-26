@@ -266,8 +266,8 @@ export function TaskModal({
       {/* Priority */}
       <PillToggle label="Priority" options={priorities} value={priority} onChange={setPriority} />
 
-      {/* Due date + hours */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Due date + hours — 2 cols on desktop, stacked on mobile */}
+      <div className={isMobile ? 'space-y-4' : 'grid grid-cols-2 gap-3'}>
         <Input
           label="Due date"
           type="date"
