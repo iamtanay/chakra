@@ -80,8 +80,8 @@ export function BottomNav() {
           {/* Settings button */}
           <button
             onClick={() => { setSettingsOpen(true); setLogoutConfirm(false) }}
-            className="flex flex-col items-center justify-center gap-1.5 py-3 transition-all duration-150"
-            style={{ minHeight: 56, minWidth: 56 }}
+            className="flex flex-col items-center justify-center gap-1.5 flex-1 py-3 transition-all duration-150"
+            style={{ minHeight: 56 }}
           >
             <Settings
               size={20}

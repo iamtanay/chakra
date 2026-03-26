@@ -7,17 +7,17 @@
 /* ── Dark theme (default) ─────────────────────────────────────────── */
 :root,
 [data-theme="dark"] {
-  /* Deep obsidian base */
-  --bg:    #080909;
-  --bg2:   #0e1012;
-  --bg3:   #151719;
-  --bg4:   #1c1f22;
-  --bg5:   #23272b;
+  /* Softer dark base — less pitch black */
+  --bg:    #111416;
+  --bg2:   #181b1e;
+  --bg3:   #1e2226;
+  --bg4:   #252a2e;
+  --bg5:   #2d3238;
 
   /* Borders */
-  --border:  rgba(255, 255, 255, 0.055);
-  --border2: rgba(255, 255, 255, 0.11);
-  --border3: rgba(255, 255, 255, 0.18);
+  --border:  rgba(255, 255, 255, 0.07);
+  --border2: rgba(255, 255, 255, 0.13);
+  --border3: rgba(255, 255, 255, 0.20);
 
   /* Text */
   --text:  #f0ede8;
