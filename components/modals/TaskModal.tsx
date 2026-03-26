@@ -268,12 +268,15 @@ export function TaskModal({
 
       {/* Due date + hours — 2 cols on desktop, stacked on mobile */}
       <div className={isMobile ? 'space-y-4' : 'grid grid-cols-2 gap-3'}>
-        <Input
-          label="Due date"
-          type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-        />
+        <div style={{ maxWidth: '100%', overflow: 'hidden' }}>
+          <Input
+            label="Due date"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            style={{ maxWidth: '100%', boxSizing: 'border-box' }}
+          />
+        </div>
         <Input
           label="Est. hours"
           type="number"
