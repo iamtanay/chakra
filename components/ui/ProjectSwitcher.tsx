@@ -9,6 +9,7 @@ interface ProjectSwitcherProps {
   selectedProjectId: string | null
   onProjectSelect: (id: string | null) => void
   compact?: boolean
+  dropdownAlign?: 'left' | 'right'
 }
 
 export function ProjectSwitcher({
@@ -16,6 +17,7 @@ export function ProjectSwitcher({
   selectedProjectId,
   onProjectSelect,
   compact = false,
+  dropdownAlign = 'left',
 }: ProjectSwitcherProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -88,10 +90,7 @@ export function ProjectSwitcher({
           className="absolute animate-slideUp"
           style={{
             top: 'calc(100% + 6px)',
-            // On mobile: anchor to right edge so it never overflows right.
-            // On desktop: anchor to left edge (handled via the md override below).
-            right: 0,
-            // Clamp width so it never exceeds the viewport with a small gutter.
+            ...(dropdownAlign === 'right' ? { right: 0 } : { left: 0 }),
             width: 'min(220px, calc(100vw - 24px))',
             zIndex: 9999,
             background: 'var(--bg3)',

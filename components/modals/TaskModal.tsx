@@ -274,7 +274,7 @@ export function TaskModal({
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
-            style={{ maxWidth: '100%', boxSizing: 'border-box' }}
+            style={{ width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}
           />
         </div>
         <Input

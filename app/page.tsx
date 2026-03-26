@@ -255,6 +255,7 @@ export default function BoardPage() {
                 selectedProjectId={selectedProjectId}
                 onProjectSelect={setSelectedProjectId}
                 compact
+                dropdownAlign="right"
               />
             )}
           </div>
