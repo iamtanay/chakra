@@ -48,6 +48,21 @@ export const viewport: Viewport = {
   userScalable: false,
 }
 
+// Inline script to apply theme before first paint — prevents flash
+const themeScript = `
+(function() {
+  try {
+    var stored = localStorage.getItem('chakra-theme');
+    if (stored === 'light' || stored === 'dark') {
+      document.documentElement.setAttribute('data-theme', stored);
+    } else {
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    }
+  } catch(e) {}
+})();
+`
+
 export default function RootLayout({
   children,
 }: {
@@ -56,6 +71,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${spaceMono.variable} ${dmSans.variable} ${cinzel.variable}`}>
       <head>
+        {/* Must be first in head to prevent theme flash */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <link rel="icon" type="image/svg+xml" href="/logo.svg" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/manifest.json" />

@@ -4,7 +4,9 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ── Dark theme (default) ─────────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
   /* Deep obsidian base */
   --bg:    #080909;
   --bg2:   #0e1012;
@@ -20,7 +22,7 @@
   /* Text */
   --text:  #f0ede8;
   --text2: #8a8880;
-  --text3: #454340;
+  --text3: #545250;
 
   /* Accents */
   --amber:       #e8a247;
@@ -34,7 +36,7 @@
   --violet-dim:  rgba(167, 139, 250, 0.1);
 
   /* Status */
-  --col-todo:    #454340;
+  --col-todo:    #6B8EBF;
   --col-wip:     #e8a247;
   --col-done:    #2dd4bf;
 
@@ -44,8 +46,62 @@
   --col-low:     #60a5fa;
 
   --sidebar-w: 240px;
+
+  /* Logo gradient (rich gold for dark bg) */
+  --logo-from: #FFD700;
+  --logo-mid:  #FF8C00;
+  --logo-to:   #FF4500;
 }
 
+/* ── Light theme ──────────────────────────────────────────────────── */
+[data-theme="light"] {
+  /* Warm parchment base */
+  --bg:    #F5F2ED;
+  --bg2:   #EDE9E3;
+  --bg3:   #E4DFD8;
+  --bg4:   #D9D3CB;
+  --bg5:   #CEC7BE;
+
+  /* Borders — strong enough to define cards/inputs clearly */
+  --border:  rgba(0, 0, 0, 0.13);
+  --border2: rgba(0, 0, 0, 0.22);
+  --border3: rgba(0, 0, 0, 0.32);
+
+  /* Text — stronger contrast so grey text is clearly readable */
+  --text:  #1A1714;
+  --text2: #4A4540;
+  --text3: #7A7570;
+
+  /* Accents — slightly deeper amber reads better on light */
+  --amber:       #C47F1A;
+  --amber-dim:   rgba(196, 127, 26, 0.12);
+  --amber-glow:  rgba(196, 127, 26, 0.22);
+  --teal:        #0D9488;
+  --teal-dim:    rgba(13, 148, 136, 0.12);
+  --rose:        #DC2626;
+  --rose-dim:    rgba(220, 38, 38, 0.1);
+  --violet:      #7C3AED;
+  --violet-dim:  rgba(124, 58, 237, 0.1);
+
+  /* Status */
+  --col-todo:    #2563EB;
+  --col-wip:     #C47F1A;
+  --col-done:    #0D9488;
+
+  /* Priority */
+  --col-high:    #DC2626;
+  --col-medium:  #C47F1A;
+  --col-low:     #2563EB;
+
+  --sidebar-w: 240px;
+
+  /* Logo gradient — a touch brighter/warmer so it pops on parchment */
+  --logo-from: #D4700A;
+  --logo-mid:  #B85500;
+  --logo-to:   #8C3800;
+}
+
+/* ── Base ─────────────────────────────────────────────────────────── */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
@@ -54,6 +110,7 @@ html, body {
   color: var(--text);
   font-family: 'Syne', sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 250ms ease, color 250ms ease;
 }
 
 .font-cinzel { font-family: var(--font-cinzel), 'Cinzel', serif; }
@@ -113,6 +170,19 @@ input[type='number'] { -moz-appearance: textfield; }
 }
 .card-lift:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.15);
   border-color: var(--border2) !important;
+}
+
+/* ── Theme transition — smooth all bg/border/color changes ── */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+/* But don't slow down transforms/opacity animations */
+.animate-fadeIn, .animate-slideUp, .animate-scaleIn,
+.sheet-enter, .chakra-spin-once, .chakra-spin-fast, .chakra-spin-loop,
+.card-lift {
+  transition: none;
 }

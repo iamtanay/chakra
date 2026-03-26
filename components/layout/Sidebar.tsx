@@ -4,8 +4,9 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Logo } from '@/components/ui/Logo'
-import { LogOut, LayoutDashboard, FolderKanban, BarChart3 } from 'lucide-react'
+import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Sun, Moon } from 'lucide-react'
 import type { Project } from '@/types'
+import { useTheme } from '@/hooks/useTheme'
 
 interface SidebarProps {
   projects: Project[]
@@ -23,6 +24,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
   const router   = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
+  const { theme, toggle } = useTheme()
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -37,11 +39,13 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
 
   return (
     <aside
-      className="hidden md:flex flex-col h-screen fixed left-0 top-0 z-40"
+      className="hidden md:flex flex-col fixed left-0 top-0 z-40"
       style={{
         width: 'var(--sidebar-w)',
+        height: '100dvh',
         background: 'var(--bg2)',
         borderRight: '1px solid var(--border)',
+        overflow: 'hidden',
       }}
     >
       {/* ── Logo ── */}
@@ -53,7 +57,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         <span
           className="font-cinzel font-600 text-sm tracking-[0.22em] uppercase"
           style={{
-            background: 'linear-gradient(135deg, #FFD700 0%, #FF8C00 60%, #FF4500 100%)',
+            background: 'linear-gradient(135deg, var(--logo-from) 0%, var(--logo-mid) 60%, var(--logo-to) 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
@@ -156,8 +160,35 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         </div>
       )}
 
-      {/* ── Logout ── */}
-      <div className="p-3 mt-auto" style={{ borderTop: '1px solid var(--border)' }}>
+      {/* ── Theme toggle + Logout ── */}
+      <div className="px-3 pt-3 pb-5 mt-auto flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+
+        {/* Theme toggle */}
+        <button
+          onClick={toggle}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group mb-1"
+          style={{ color: 'var(--text3)' }}
+        >
+          <div className="relative w-8 h-4 rounded-full flex-shrink-0 transition-colors duration-300"
+            style={{ background: theme === 'dark' ? 'var(--bg5)' : 'var(--amber)' }}
+          >
+            <div
+              className="absolute top-0.5 w-3 h-3 rounded-full transition-all duration-300"
+              style={{
+                background: theme === 'dark' ? 'var(--text3)' : '#fff',
+                left: theme === 'dark' ? '2px' : '18px',
+              }}
+            />
+          </div>
+          <span className="font-syne text-xs font-500 tracking-wide flex items-center gap-1.5">
+            {theme === 'dark'
+              ? <><Moon size={11} style={{ color: 'var(--text3)' }} /> Dark</>
+              : <><Sun  size={11} style={{ color: 'var(--amber)' }} /> Light</>
+            }
+          </span>
+        </button>
+
+        {/* Logout */}
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group"

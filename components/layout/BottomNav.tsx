@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, FolderKanban, BarChart3, LogOut } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, BarChart3, Settings, Sun, Moon, LogOut, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useTheme } from '@/hooks/useTheme'
 
 const NAV_ITEMS = [
   { href: '/',         label: 'Board',    Icon: LayoutDashboard },
@@ -16,80 +17,184 @@ export function BottomNav() {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
-  const [confirm, setConfirm] = useState(false)
+  const { theme, toggle } = useTheme()
+
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [logoutConfirm, setLogoutConfirm] = useState(false)
+
+  // Close on escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSettingsOpen(false) }
+    if (settingsOpen) document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [settingsOpen])
 
   const handleLogout = async () => {
-    if (!confirm) { setConfirm(true); setTimeout(() => setConfirm(false), 2500); return }
+    if (!logoutConfirm) {
+      setLogoutConfirm(true)
+      setTimeout(() => setLogoutConfirm(false), 2500)
+      return
+    }
     await supabase.auth.signOut()
     router.push('/login')
   }
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 md:hidden z-50"
-      style={{
-        background:    'rgba(14, 16, 18, 0.92)',
-        backdropFilter: 'blur(20px)',
-        borderTop:     '1px solid var(--border)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-      }}
-    >
-      <div className="flex items-center">
-        {NAV_ITEMS.map(({ href, label, Icon }) => {
-          const active = pathname === href
-          return (
-            <Link
-              key={href}
-              href={href}
-              className="flex flex-col items-center justify-center gap-1.5 flex-1 py-3 transition-all duration-150 relative"
-              style={{ minHeight: 56 }}
-            >
-              {active && (
-                <div
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
-                  style={{ background: 'var(--amber)' }}
-                />
-              )}
-              <Icon
-                size={20}
-                style={{ color: active ? 'var(--amber)' : 'var(--text3)' }}
-              />
-              <span
-                className="font-syne text-xs font-500 tracking-wide"
-                style={{ color: active ? 'var(--text)' : 'var(--text3)' }}
+    <>
+      <nav
+        className="fixed bottom-0 left-0 right-0 md:hidden z-50"
+        style={{
+          background:    'var(--bg2)',
+          backdropFilter: 'blur(20px)',
+          borderTop:     '1px solid var(--border)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+      >
+        <div className="flex items-center">
+          {NAV_ITEMS.map(({ href, label, Icon }) => {
+            const active = pathname === href
+            return (
+              <Link
+                key={href}
+                href={href}
+                className="flex flex-col items-center justify-center gap-1.5 flex-1 py-3 transition-all duration-150 relative"
+                style={{ minHeight: 56 }}
               >
-                {label}
-              </span>
-            </Link>
-          )
-        })}
+                {active && (
+                  <div
+                    className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
+                    style={{ background: 'var(--amber)' }}
+                  />
+                )}
+                <Icon size={20} style={{ color: active ? 'var(--amber)' : 'var(--text3)' }} />
+                <span
+                  className="font-syne text-xs font-500 tracking-wide"
+                  style={{ color: active ? 'var(--text)' : 'var(--text3)' }}
+                >
+                  {label}
+                </span>
+              </Link>
+            )
+          })}
 
-        {/* Subtle logout — tap once to prime, tap again to confirm */}
-        <button
-          onClick={handleLogout}
-          className="flex flex-col items-center justify-center gap-1.5 py-3 transition-all duration-200 relative"
-          style={{ minHeight: 56, minWidth: 56 }}
-          title="Log out"
+          {/* Settings button */}
+          <button
+            onClick={() => { setSettingsOpen(true); setLogoutConfirm(false) }}
+            className="flex flex-col items-center justify-center gap-1.5 py-3 transition-all duration-150"
+            style={{ minHeight: 56, minWidth: 56 }}
+          >
+            <Settings
+              size={20}
+              style={{ color: settingsOpen ? 'var(--amber)' : 'var(--text3)' }}
+            />
+            <span
+              className="font-syne text-xs font-500"
+              style={{ color: settingsOpen ? 'var(--amber)' : 'var(--text3)', fontSize: '10px' }}
+            >
+              More
+            </span>
+          </button>
+        </div>
+      </nav>
+
+      {/* ── Settings Sheet ── */}
+      {settingsOpen && (
+        <div
+          className="fixed inset-0 z-[60] md:hidden animate-fadeIn"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setSettingsOpen(false) }}
         >
-          <LogOut
-            size={18}
+          <div
+            className="fixed bottom-0 left-0 right-0 rounded-t-3xl sheet-enter"
             style={{
-              color: confirm ? 'var(--rose)' : 'var(--text3)',
-              transition: 'color 200ms',
-            }}
-          />
-          <span
-            className="font-syne text-xs font-500"
-            style={{
-              color: confirm ? 'var(--rose)' : 'var(--text3)',
-              fontSize: '10px',
-              transition: 'color 200ms',
+              background:    'var(--bg2)',
+              borderTop:     '1px solid var(--border2)',
+              boxShadow:     '0 -16px 60px rgba(0,0,0,0.5)',
+              paddingBottom: 'env(safe-area-inset-bottom)',
             }}
           >
-            {confirm ? 'Sure?' : 'Out'}
-          </span>
-        </button>
-      </div>
-    </nav>
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full" style={{ background: 'var(--bg5)' }} />
+            </div>
+
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-5 py-3"
+              style={{ borderBottom: '1px solid var(--border)' }}
+            >
+              <h2 className="font-syne font-700 text-base" style={{ color: 'var(--text)' }}>
+                Settings
+              </h2>
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ color: 'var(--text3)', background: 'var(--bg3)' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-3">
+
+              {/* Theme toggle row */}
+              <div
+                className="flex items-center justify-between px-4 py-3.5 rounded-xl"
+                style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}
+              >
+                <div className="flex items-center gap-3">
+                  {theme === 'dark'
+                    ? <Moon size={16} style={{ color: 'var(--text3)' }} />
+                    : <Sun  size={16} style={{ color: 'var(--amber)' }} />
+                  }
+                  <span className="font-syne text-sm font-500" style={{ color: 'var(--text)' }}>
+                    {theme === 'dark' ? 'Dark mode' : 'Light mode'}
+                  </span>
+                </div>
+
+                {/* Toggle pill */}
+                <div
+                  className="relative w-12 h-6 rounded-full cursor-pointer transition-colors duration-300 flex-shrink-0"
+                  style={{ background: theme === 'light' ? 'var(--amber)' : 'var(--bg5)' }}
+                  onClick={toggle}
+                >
+                  <div
+                    className="absolute top-1 w-4 h-4 rounded-full transition-all duration-300"
+                    style={{
+                      background: '#fff',
+                      left: theme === 'light' ? '28px' : '4px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Logout row */}
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-150"
+                style={{
+                  background: logoutConfirm ? 'var(--rose-dim)' : 'var(--bg3)',
+                  border: `1px solid ${logoutConfirm ? 'var(--rose)' : 'var(--border)'}`,
+                }}
+              >
+                <LogOut
+                  size={16}
+                  style={{ color: logoutConfirm ? 'var(--rose)' : 'var(--text3)' }}
+                />
+                <span
+                  className="font-syne text-sm font-500"
+                  style={{ color: logoutConfirm ? 'var(--rose)' : 'var(--text)' }}
+                >
+                  {logoutConfirm ? 'Tap again to confirm' : 'Log out'}
+                </span>
+              </button>
+
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

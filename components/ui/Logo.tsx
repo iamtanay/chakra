@@ -12,6 +12,7 @@ export function Logo({ spin = null, size = 32 }: LogoProps) {
     : spin === 'loop' ? 'chakra-spin-loop'
     : ''
 
+  // Uses CSS vars --logo-from / --logo-mid / --logo-to defined per theme in globals.css
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -24,22 +25,22 @@ export function Logo({ spin = null, size = 32 }: LogoProps) {
     >
       <defs>
         <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#FFD700" stopOpacity="1"/>
-          <stop offset="60%"  stopColor="#FF8C00" stopOpacity="0.9"/>
-          <stop offset="100%" stopColor="#FF4500" stopOpacity="0"/>
+          <stop offset="0%"   stopColor="var(--logo-from)" stopOpacity="1"/>
+          <stop offset="60%"  stopColor="var(--logo-mid)"  stopOpacity="0.9"/>
+          <stop offset="100%" stopColor="var(--logo-to)"   stopOpacity="0"/>
         </radialGradient>
         <radialGradient id="outerGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#FF8C00" stopOpacity="0.15"/>
-          <stop offset="100%" stopColor="#FF4500" stopOpacity="0"/>
+          <stop offset="0%"   stopColor="var(--logo-mid)" stopOpacity="0.15"/>
+          <stop offset="100%" stopColor="var(--logo-to)"  stopOpacity="0"/>
         </radialGradient>
         <linearGradient id="spokeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%"   stopColor="#FFD700"/>
-          <stop offset="100%" stopColor="#FF6B00"/>
+          <stop offset="0%"   stopColor="var(--logo-from)"/>
+          <stop offset="100%" stopColor="var(--logo-to)"/>
         </linearGradient>
         <linearGradient id="rimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%"   stopColor="#FFD700"/>
-          <stop offset="50%"  stopColor="#FF8C00"/>
-          <stop offset="100%" stopColor="#FF4500"/>
+          <stop offset="0%"   stopColor="var(--logo-from)"/>
+          <stop offset="50%"  stopColor="var(--logo-mid)"/>
+          <stop offset="100%" stopColor="var(--logo-to)"/>
         </linearGradient>
         <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur stdDeviation="2.5" result="blur"/>
@@ -78,7 +79,7 @@ export function Logo({ spin = null, size = 32 }: LogoProps) {
       </g>
 
       {/* 4 secondary thin spokes */}
-      <g stroke="#FF8C00" strokeLinecap="round" opacity="0.4">
+      <g stroke="var(--logo-mid)" strokeLinecap="round" opacity="0.4">
         <line x1="60" y1="22" x2="60" y2="98" strokeWidth="0.75" transform="rotate(22.5 60 60)"/>
         <line x1="60" y1="22" x2="60" y2="98" strokeWidth="0.75" transform="rotate(67.5 60 60)"/>
         <line x1="60" y1="22" x2="60" y2="98" strokeWidth="0.75" transform="rotate(112.5 60 60)"/>
@@ -86,7 +87,7 @@ export function Logo({ spin = null, size = 32 }: LogoProps) {
       </g>
 
       {/* Middle dashed ring */}
-      <circle cx="60" cy="60" r="30" stroke="#FFD700" strokeWidth="0.75" opacity="0.3" strokeDasharray="3.5 2.5"/>
+      <circle cx="60" cy="60" r="30" stroke="var(--logo-from)" strokeWidth="0.75" opacity="0.3" strokeDasharray="3.5 2.5"/>
 
       {/* Inner solid ring */}
       <circle cx="60" cy="60" r="18" stroke="url(#rimGrad)" strokeWidth="1.75" opacity="0.9"/>
@@ -95,24 +96,24 @@ export function Logo({ spin = null, size = 32 }: LogoProps) {
       <circle cx="60" cy="60" r="14" fill="url(#coreGlow)" opacity="0.2"/>
 
       {/* Hub ring */}
-      <circle cx="60" cy="60" r="10" stroke="#FFD700" strokeWidth="1.5" opacity="0.85" fill="none"/>
+      <circle cx="60" cy="60" r="10" stroke="var(--logo-from)" strokeWidth="1.5" opacity="0.85" fill="none"/>
 
       {/* Center jewel */}
-      <circle cx="60" cy="60" r="6" fill="#120600" stroke="#FF8C00" strokeWidth="1"/>
-      <circle cx="60" cy="60" r="4" fill="#FF8C00" filter="url(#softGlow)"/>
-      <circle cx="60" cy="60" r="2.5" fill="#FFD700"/>
+      <circle cx="60" cy="60" r="6" fill="var(--bg)" stroke="var(--logo-mid)" strokeWidth="1"/>
+      <circle cx="60" cy="60" r="4" fill="var(--logo-mid)" filter="url(#softGlow)"/>
+      <circle cx="60" cy="60" r="2.5" fill="var(--logo-from)"/>
       <circle cx="60" cy="60" r="1.2" fill="white" opacity="0.9"/>
 
       {/* Spoke tip accent dots */}
-      <g fill="#FFD700" filter="url(#glow)" opacity="0.85">
-        <circle cx="60"   cy="14.5" r="2"/>
-        <circle cx="60"   cy="105.5" r="2"/>
-        <circle cx="14.5" cy="60"   r="2"/>
-        <circle cx="105.5" cy="60"  r="2"/>
-        <circle cx="27.7" cy="27.7" r="1.5"/>
-        <circle cx="92.3" cy="92.3" r="1.5"/>
-        <circle cx="92.3" cy="27.7" r="1.5"/>
-        <circle cx="27.7" cy="92.3" r="1.5"/>
+      <g fill="var(--logo-from)" filter="url(#glow)" opacity="0.85">
+        <circle cx="60"    cy="14.5"  r="2"/>
+        <circle cx="60"    cy="105.5" r="2"/>
+        <circle cx="14.5"  cy="60"    r="2"/>
+        <circle cx="105.5" cy="60"    r="2"/>
+        <circle cx="27.7"  cy="27.7"  r="1.5"/>
+        <circle cx="92.3"  cy="92.3"  r="1.5"/>
+        <circle cx="92.3"  cy="27.7"  r="1.5"/>
+        <circle cx="27.7"  cy="92.3"  r="1.5"/>
       </g>
     </svg>
   )
