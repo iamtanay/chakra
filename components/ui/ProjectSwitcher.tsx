@@ -88,8 +88,11 @@ export function ProjectSwitcher({
           className="absolute animate-slideUp"
           style={{
             top: 'calc(100% + 6px)',
-            left: 0,
-            minWidth: 200,
+            // On mobile: anchor to right edge so it never overflows right.
+            // On desktop: anchor to left edge (handled via the md override below).
+            right: 0,
+            // Clamp width so it never exceeds the viewport with a small gutter.
+            width: 'min(220px, calc(100vw - 24px))',
             zIndex: 9999,
             background: 'var(--bg3)',
             border: '1px solid var(--border2)',

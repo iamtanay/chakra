@@ -68,9 +68,16 @@ export default function LoginPage() {
           >
             <Logo size={32} spin="once" />
           </div>
+          {/* Cinzel font with same gradient as sidebar */}
           <h1
-            className="font-syne font-800 text-2xl tracking-widest uppercase mb-1"
-            style={{ color: 'var(--text)', letterSpacing: '0.25em' }}
+            className="font-cinzel font-700 text-2xl uppercase mb-1"
+            style={{
+              background: 'linear-gradient(135deg, #FFD700 0%, #FF8C00 60%, #FF4500 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              letterSpacing: '0.22em',
+            }}
           >
             Chakra
           </h1>
@@ -103,6 +110,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
+                autoComplete="email"
                 className="w-full px-4 py-3 rounded-xl outline-none transition-all duration-150"
                 style={{
                   background:   'var(--bg3)',
@@ -129,6 +137,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                autoComplete="current-password"
                 className="w-full px-4 py-3 rounded-xl outline-none transition-all duration-150"
                 style={{
                   background: 'var(--bg3)',

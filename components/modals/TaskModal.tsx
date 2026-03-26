@@ -2,19 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
-import { BottomSheet } from '@/components/ui/BottomSheet'
 import { Input } from '@/components/ui/Input'
 import { PillToggle } from '@/components/ui/PillToggle'
 import type { Task, Project, Status, Priority, Category } from '@/types'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { X } from 'lucide-react'
 
 interface TaskModalProps {
   isOpen: boolean
   onClose: () => void
-  task: Task | null           // null = create mode
+  task: Task | null
   projects: Project[]
-  defaultProjectId?: string   // pre-select when creating from a column
-  defaultStatus?: Status      // pre-select status when creating from a column
+  defaultProjectId?: string
+  defaultStatus?: Status
   onSave: (task: Task) => void
   onDelete: (taskId: string) => void
   onCreate: (data: NewTaskData) => void
@@ -55,13 +55,81 @@ const fieldLabel = (text: string) => (
   </label>
 )
 
+// ── Mobile-only Task Sheet ──────────────────────────────────────────
+interface MobileTaskSheetProps {
+  isOpen: boolean
+  onClose: () => void
+  title?: string
+  children: React.ReactNode
+}
+
+function MobileTaskSheet({ isOpen, onClose, title, children }: MobileTaskSheetProps) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    if (isOpen) document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [isOpen, onClose])
+
+  if (!isOpen) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 md:hidden animate-fadeIn"
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        className="fixed bottom-0 left-0 right-0 rounded-t-3xl sheet-enter flex flex-col"
+        style={{
+          background:    'var(--bg2)',
+          borderTop:     '1px solid var(--border2)',
+          boxShadow:     '0 -16px 60px rgba(0,0,0,0.5)',
+          maxHeight:     '58vh',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full" style={{ background: 'var(--bg5)' }} />
+        </div>
+
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-5 py-3 flex-shrink-0"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          {title && (
+            <h2 className="font-syne font-700 text-base" style={{ color: 'var(--text)' }}>
+              {title}
+            </h2>
+          )}
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center ml-auto"
+            style={{ color: 'var(--text3)', background: 'var(--bg3)' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div
+          className="overflow-y-auto p-5 flex-1"
+          style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TaskModal({
   isOpen, onClose, task, projects,
   defaultProjectId, defaultStatus,
   onSave, onDelete, onCreate,
 }: TaskModalProps) {
   const isCreating = task === null
-
   const firstProjectId = defaultProjectId || projects[0]?.id || ''
 
   const [title,          setTitle]          = useState('')
@@ -77,7 +145,6 @@ export function TaskModal({
 
   const isMobile = useMediaQuery('(max-width: 768px)')
 
-  // Populate form when opening in edit mode or reset for create
   useEffect(() => {
     if (!isOpen) return
     if (task) {
@@ -114,7 +181,7 @@ export function TaskModal({
       </div>
     )
     const title_ = 'Add task'
-    if (isMobile) return <BottomSheet isOpen={isOpen} onClose={onClose} title={title_}>{msg}</BottomSheet>
+    if (isMobile) return <MobileTaskSheet isOpen={isOpen} onClose={onClose} title={title_}>{msg}</MobileTaskSheet>
     return <Modal isOpen={isOpen} onClose={onClose} title={title_}>{msg}</Modal>
   }
 
@@ -156,13 +223,13 @@ export function TaskModal({
 
   const content = (
     <div className="space-y-4">
-      {/* Title */}
+      {/* Title — no autoFocus on mobile to avoid keyboard popup */}
       <Input
         label="Title"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="What needs doing?"
-        autoFocus
+        autoFocus={!isMobile}
       />
 
       {/* Description */}
@@ -218,7 +285,7 @@ export function TaskModal({
         />
       </div>
 
-      {/* Status (only show in edit mode — in create we set it from the column) */}
+      {/* Status (edit mode only) */}
       {!isCreating && (
         <PillToggle label="Status" options={statuses} value={status} onChange={setStatus} />
       )}
@@ -279,6 +346,6 @@ export function TaskModal({
   )
 
   const modalTitle = isCreating ? 'Add task' : 'Edit task'
-  if (isMobile) return <BottomSheet isOpen={isOpen} onClose={onClose} title={modalTitle}>{content}</BottomSheet>
+  if (isMobile) return <MobileTaskSheet isOpen={isOpen} onClose={onClose} title={modalTitle}>{content}</MobileTaskSheet>
   return <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>{content}</Modal>
 }

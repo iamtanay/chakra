@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, FolderKanban, BarChart3 } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { LayoutDashboard, FolderKanban, BarChart3, LogOut } from 'lucide-react'
+import { createClient } from '@/lib/supabase'
+import { useState } from 'react'
 
 const NAV_ITEMS = [
   { href: '/',         label: 'Board',    Icon: LayoutDashboard },
@@ -12,6 +14,15 @@ const NAV_ITEMS = [
 
 export function BottomNav() {
   const pathname = usePathname()
+  const router   = useRouter()
+  const supabase = createClient()
+  const [confirm, setConfirm] = useState(false)
+
+  const handleLogout = async () => {
+    if (!confirm) { setConfirm(true); setTimeout(() => setConfirm(false), 2500); return }
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   return (
     <nav
@@ -52,6 +63,32 @@ export function BottomNav() {
             </Link>
           )
         })}
+
+        {/* Subtle logout — tap once to prime, tap again to confirm */}
+        <button
+          onClick={handleLogout}
+          className="flex flex-col items-center justify-center gap-1.5 py-3 transition-all duration-200 relative"
+          style={{ minHeight: 56, minWidth: 56 }}
+          title="Log out"
+        >
+          <LogOut
+            size={18}
+            style={{
+              color: confirm ? 'var(--rose)' : 'var(--text3)',
+              transition: 'color 200ms',
+            }}
+          />
+          <span
+            className="font-syne text-xs font-500"
+            style={{
+              color: confirm ? 'var(--rose)' : 'var(--text3)',
+              fontSize: '10px',
+              transition: 'color 200ms',
+            }}
+          >
+            {confirm ? 'Sure?' : 'Out'}
+          </span>
+        </button>
       </div>
     </nav>
   )
