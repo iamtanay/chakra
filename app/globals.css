@@ -95,7 +95,7 @@
 
   --sidebar-w: 240px;
 
-  /* Logo gradient — a touch brighter/warmer so it pops on parchment */
+  /* Logo gradient — deeper burnt tones for contrast on parchment */
   --logo-from: #D4700A;
   --logo-mid:  #B85500;
   --logo-to:   #8C3800;
@@ -119,6 +119,30 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--bg5); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border3); }
+
+/* ── Logo / Brand gradient text ───────────────────────────────────── */
+/*
+ * Single source of truth for the "Chakra" wordmark.
+ * Uses --logo-from / --logo-mid / --logo-to so both themes
+ * automatically get the right contrast without any JSX changes.
+ * Override only `font-size` or `letter-spacing` at the call-site.
+ */
+.logo-text {
+  font-family: var(--font-cinzel), 'Cinzel', serif;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+
+  background: linear-gradient(
+    135deg,
+    var(--logo-from) 0%,
+    var(--logo-mid)  60%,
+    var(--logo-to)   100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 
 /* ── Spin ── */
 @keyframes chakra-spin {

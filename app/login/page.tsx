@@ -68,19 +68,10 @@ export default function LoginPage() {
           >
             <Logo size={32} spin="once" />
           </div>
-          {/* Cinzel font with same gradient as sidebar */}
-          <h1
-            className="font-cinzel font-700 text-2xl uppercase mb-1"
-            style={{
-              background: 'linear-gradient(135deg, #FFD700 0%, #FF8C00 60%, #FF4500 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              letterSpacing: '0.22em',
-            }}
-          >
-            Chakra
-          </h1>
+
+          {/* .logo-text handles font, gradient, letter-spacing — theme-aware via CSS vars */}
+          <h1 className="logo-text text-2xl mb-1">Chakra</h1>
+
           <p
             className="font-mono text-xs tracking-widest"
             style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}

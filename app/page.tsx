@@ -234,19 +234,8 @@ export default function BoardPage() {
           >
             <div className="flex items-center gap-2.5">
               <Logo size={24} spin={logoSpin} />
-              <span
-                className="font-cinzel tracking-[0.25em] uppercase"
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  background: 'linear-gradient(135deg, #FFD700 0%, #FF8C00 70%, #FF4500 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                Chakra
-              </span>
+              {/* .logo-text handles font, gradient, and letter-spacing — theme-aware via CSS vars */}
+              <span className="logo-text" style={{ fontSize: 13 }}>Chakra</span>
             </div>
 
             {hasProjects && (
