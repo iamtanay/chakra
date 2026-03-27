@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+@import url('https://fonts.google.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -125,7 +125,7 @@ html, body {
  * Single source of truth for the "Chakra" wordmark.
  * Uses --logo-from / --logo-mid / --logo-to so both themes
  * automatically get the right contrast without any JSX changes.
- * Override only `font-size` or `letter-spacing` at the call-site.
+ * Override only `font-size` at the call-site if needed.
  */
 .logo-text {
   font-family: var(--font-cinzel), 'Cinzel', serif;
@@ -177,12 +177,19 @@ html, body {
 .animate-scaleIn { animation: scaleIn 240ms cubic-bezier(0.16,1,0.3,1) forwards; }
 .sheet-enter     { animation: sheetSlideUp 360ms cubic-bezier(0.16,1,0.3,1) forwards; }
 
-/* ── date inputs — prevent iOS WebKit from overflowing its container ── */
+/* ── date inputs — iOS Safari overflow fix ────────────────────────── */
+/*
+ * iOS WebKit applies a fixed intrinsic width to date inputs and ignores
+ * width / box-sizing constraints unless -webkit-appearance is cleared first.
+ * Without this, the input bleeds outside its container on iPhone.
+ */
 input[type='date'] {
   display: block;
   width: 100%;
   min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
+  -webkit-appearance: none; /* removes iOS native chrome that causes overflow */
 }
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
