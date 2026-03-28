@@ -28,7 +28,7 @@ export const LEAD_DAYS: Record<RecurrenceFrequency, number> = {
  *  NEVER uses `new Date(str)` directly because that parses as UTC midnight
  *  and then local-timezone offset shifts the visible date by ±1 day. */
 export function parseLocalDate(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number)
+  const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
   return new Date(y, m - 1, d)   // months are 0-indexed
 }
 
@@ -268,7 +268,7 @@ export function recurrenceLabel(task: Task): string {
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd']
   const v = n % 100
-  return n + (s[(v - 20) % 10] || s[v] || s[0])
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0] ?? 'th')
 }
 
 /** Returns 'overdue' | 'due-soon' | 'upcoming' | 'normal' for badge colouring */
