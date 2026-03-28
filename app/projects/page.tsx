@@ -6,13 +6,13 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { ProjectModal } from '@/components/projects/ProjectModal'
+import { TaskModal } from '@/components/modals/TaskModal'
 import { Logo } from '@/components/ui/Logo'
 import { Plus } from 'lucide-react'
 import type { Project, Task } from '@/types'
+import type { NewTaskData } from '@/components/modals/TaskModal'
 
 // ---------------------------------------------------------------------------
-// Typed helper — sidesteps the `never` row-type issue that occurs when
-// createClient() is instantiated without a Database generic parameter.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (table: string) => (createClient() as any).from(table)
 // ---------------------------------------------------------------------------
@@ -24,6 +24,10 @@ export default function ProjectsPage() {
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [showModal,      setShowModal]      = useState(false)
   const [logoSpin,       setLogoSpin]       = useState<'once' | 'fast' | 'loop' | null>('once')
+
+  // TaskModal state — for editing a recurring task from within the project modal
+  const [editingTask,    setEditingTask]    = useState<Task | null>(null)
+  const [taskModalOpen,  setTaskModalOpen]  = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setLogoSpin(null), 600)
@@ -54,6 +58,8 @@ export default function ProjectsPage() {
     return { total: pt.length, completed: pt.filter((t) => t.status === 'Done').length }
   }
 
+  // ── Project CRUD ───────────────────────────────────────────────────────────
+
   const handleSave = async (project: Project) => {
     try {
       setLogoSpin('loop')
@@ -80,6 +86,46 @@ export default function ProjectsPage() {
     } catch { loadData() }
     finally { setLogoSpin(null); setEditingProject(null); setShowModal(false) }
   }
+
+  // ── Recurring task handlers (called from ProjectModal) ─────────────────────
+
+  const handleEditRecurringTask = (task: Task) => {
+    // Close the project modal first so the two modals don't stack
+    setShowModal(false)
+    setEditingTask(task)
+    setTaskModalOpen(true)
+  }
+
+  const handleTaskSave = async (updatedTask: Task) => {
+    try {
+      setLogoSpin('loop')
+      setTasks((prev) => prev.map((t) => t.id === updatedTask.id ? updatedTask : t))
+      const { actual_hours, completed_at, ...updateData } = updatedTask
+      await db('tasks').update(updateData).eq('id', updatedTask.id)
+    } catch { loadData() }
+    finally { setLogoSpin(null) }
+  }
+
+  const handleTaskDelete = async (taskId: string) => {
+    try {
+      setLogoSpin('loop')
+      setTasks((prev) => prev.filter((t) => t.id !== taskId))
+      await db('tasks').delete().eq('id', taskId)
+    } catch { loadData() }
+    finally { setLogoSpin(null) }
+  }
+
+  // onCreate is not used from the projects page but TaskModal requires the prop
+  const handleTaskCreate = async (_data: NewTaskData) => { /* no-op */ }
+
+  const closeTaskModal = () => {
+    setTaskModalOpen(false)
+    setEditingTask(null)
+    // Re-open the project modal if the user was editing a task inside it
+    if (editingProject) setShowModal(true)
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -183,6 +229,20 @@ export default function ProjectsPage() {
         onSave={handleSave}
         onDelete={handleDelete}
         canDelete={editingProject ? tasks.filter((t) => t.project_id === editingProject.id).length === 0 : true}
+        recurringTasks={editingProject ? tasks.filter((t) => t.project_id === editingProject.id && t.is_recurring) : []}
+        onEditRecurringTask={handleEditRecurringTask}
+        onDeleteRecurringTask={handleTaskDelete}
+      />
+
+      {/* TaskModal — mounted here for editing recurring tasks from within ProjectModal */}
+      <TaskModal
+        isOpen={taskModalOpen}
+        onClose={closeTaskModal}
+        task={editingTask}
+        projects={projects}
+        onSave={handleTaskSave}
+        onDelete={handleTaskDelete}
+        onCreate={handleTaskCreate}
       />
     </div>
   )

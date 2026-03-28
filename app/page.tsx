@@ -14,12 +14,17 @@ import { ProjectSwitcher } from '@/components/ui/ProjectSwitcher'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { Plus } from 'lucide-react'
 import type { Task, Project, Status } from '@/types'
+import {
+  shouldShowRecurringTask,
+  advanceRecurringCycle,
+  computeInitialNextDueDate,
+  toISODate,
+  todayLocal,
+} from '@/lib/recurrence'
 
 // ---------------------------------------------------------------------------
 // Typed helper — sidesteps the `never` row-type issue that occurs when
 // createClient() is instantiated without a Database generic parameter.
-// Using `any` here is intentional and scoped only to this one abstraction.
-// ---------------------------------------------------------------------------
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (table: string) => (createClient() as any).from(table)
 
@@ -61,9 +66,20 @@ export default function BoardPage() {
 
   useEffect(() => { loadData() }, [])
 
+  // ── Filtered tasks for board display ───────────────────────────────────────
+  // 1. Filter by selected project
+  // 2. Hide recurring tasks that aren't in their lead window yet
   const filteredTasks = useMemo(() => {
-    if (!selectedProjectId) return tasks
-    return tasks.filter((t) => t.project_id === selectedProjectId)
+    const today = todayLocal()
+
+    const projectFiltered = selectedProjectId
+      ? tasks.filter((t) => t.project_id === selectedProjectId)
+      : tasks
+
+    return projectFiltered.filter((t) => {
+      if (!t.is_recurring) return true
+      return shouldShowRecurringTask(t, today)
+    })
   }, [tasks, selectedProjectId])
 
   // ── Modal helpers ──────────────────────────────────────────────────────────
@@ -89,20 +105,44 @@ export default function BoardPage() {
   const handleTaskCreate = async (data: NewTaskData) => {
     try {
       setLogoSpin('loop')
+
+      // For recurring tasks, compute the initial next_due_date if not already set
+      let nextDueDate = data.next_due_date
+      if (data.is_recurring && !nextDueDate && data.recurrence_frequency) {
+        const partial = {
+          is_recurring:            true,
+          recurrence_frequency:    data.recurrence_frequency,
+          recurrence_day_of_week:  data.recurrence_day_of_week,
+          recurrence_day_of_month: data.recurrence_day_of_month,
+          recurrence_month:        data.recurrence_month,
+        } as Parameters<typeof computeInitialNextDueDate>[0]
+        nextDueDate = toISODate(computeInitialNextDueDate(partial))
+      }
+
+      const insertPayload = {
+        title:                   data.title,
+        description:             data.description,
+        project_id:              data.project_id,
+        status:                  data.status,
+        priority:                data.priority,
+        category:                data.category,
+        due_date:                data.due_date,
+        estimated_hours:         data.estimated_hours,
+        today_flag:              data.today_flag,
+        actual_hours:            null,
+        completed_at:            null,
+        // Recurring
+        is_recurring:            data.is_recurring,
+        recurrence_frequency:    data.recurrence_frequency,
+        recurrence_day_of_week:  data.recurrence_day_of_week,
+        recurrence_day_of_month: data.recurrence_day_of_month,
+        recurrence_month:        data.recurrence_month,
+        last_completed_cycle:    null,
+        next_due_date:           nextDueDate,
+      }
+
       const { data: inserted, error } = await db('tasks')
-        .insert([{
-          title:           data.title,
-          description:     data.description,
-          project_id:      data.project_id,
-          status:          data.status,
-          priority:        data.priority,
-          category:        data.category,
-          due_date:        data.due_date,
-          estimated_hours: data.estimated_hours,
-          today_flag:      data.today_flag,
-          actual_hours:    null,
-          completed_at:    null,
-        }])
+        .insert([insertPayload])
         .select()
         .single()
 
@@ -121,6 +161,10 @@ export default function BoardPage() {
     try {
       setLogoSpin('loop')
       setTasks((prev) => prev.map((t) => t.id === updatedTask.id ? updatedTask : t))
+
+      // Build the update payload — include all fields that can change on edit.
+      // We deliberately omit actual_hours and completed_at (those only change
+      // when completing a cycle or a one-off task).
       const { actual_hours, completed_at, ...updateData } = updatedTask
       await db('tasks').update(updateData).eq('id', updatedTask.id)
       setLogoSpin(null)
@@ -145,6 +189,11 @@ export default function BoardPage() {
   }
 
   const handleStatusChange = async (taskId: string, newStatus: Status) => {
+    // Recurring tasks should not be status-changed via drag/swipe into Done —
+    // they must go through the cycle-completion flow. But allow Todo ↔ In Progress.
+    const task = tasks.find((t) => t.id === taskId)
+    if (task?.is_recurring && newStatus === 'Done') return
+
     try {
       setLogoSpin('loop')
       setTasks((prev) =>
@@ -165,27 +214,53 @@ export default function BoardPage() {
 
   const handleCompleteConfirm = async (hours: number | null) => {
     if (!completingTask) return
+    const task = completingTask
+    setCompletingTask(null)   // close modal immediately for snappy UX
+
     try {
       setLogoSpin('loop')
-      const now = new Date().toISOString()
-      const updated: Task = {
-        ...completingTask,
-        status:       'Done',
-        actual_hours: hours,
-        completed_at: now,
+
+      if (task.is_recurring) {
+        // ── Recurring: advance the cycle ─────────────────────────────────────
+        const advanced = advanceRecurringCycle(task)
+
+        // Merge hours into the advanced state for logging purposes
+        // (we store actual_hours on the old cycle conceptually, but since
+        //  there's only one row we write it then immediately clear it — instead
+        //  we simply don't store per-cycle actual_hours beyond this update.
+        //  The completed_at/actual_hours are reset to null by advanceRecurringCycle.)
+        const dbUpdate = {
+          status:               advanced.status,
+          actual_hours:         null,
+          completed_at:         null,
+          today_flag:           false,
+          last_completed_cycle: advanced.last_completed_cycle,
+          next_due_date:        advanced.next_due_date,
+        }
+
+        setTasks((prev) => prev.map((t) => t.id === task.id ? advanced : t))
+        await db('tasks').update(dbUpdate).eq('id', task.id)
+      } else {
+        // ── One-off: mark permanently Done ───────────────────────────────────
+        const now = new Date().toISOString()
+        const updated: Task = {
+          ...task,
+          status:       'Done',
+          actual_hours: hours,
+          completed_at: now,
+        }
+        setTasks((prev) => prev.map((t) => t.id === task.id ? updated : t))
+        await db('tasks')
+          .update({ status: 'Done', actual_hours: hours, completed_at: now })
+          .eq('id', task.id)
       }
-      setTasks((prev) => prev.map((t) => t.id === completingTask.id ? updated : t))
-      await db('tasks')
-        .update({ status: 'Done', actual_hours: hours, completed_at: now })
-        .eq('id', completingTask.id)
+
       setLogoSpin('fast')
       setTimeout(() => setLogoSpin(null), 400)
     } catch (err) {
       console.error('Error completing task:', err)
       loadData()
       setLogoSpin(null)
-    } finally {
-      setCompletingTask(null)
     }
   }
 
@@ -234,7 +309,6 @@ export default function BoardPage() {
           >
             <div className="flex items-center gap-2.5">
               <Logo size={24} spin={logoSpin} />
-              {/* .logo-text handles font, gradient, and letter-spacing — theme-aware via CSS vars */}
               <span className="logo-text" style={{ fontSize: 13 }}>Chakra</span>
             </div>
 

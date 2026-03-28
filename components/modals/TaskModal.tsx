@@ -4,9 +4,14 @@ import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { PillToggle } from '@/components/ui/PillToggle'
-import type { Task, Project, Status, Priority, Category } from '@/types'
+import type { Task, Project, Status, Priority, Category, RecurrenceFrequency } from '@/types'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
-import { X } from 'lucide-react'
+import { X, RefreshCw } from 'lucide-react'
+import {
+  computeInitialNextDueDate,
+  toISODate,
+  recurrenceLabel,
+} from '@/lib/recurrence'
 
 interface TaskModalProps {
   isOpen: boolean
@@ -30,6 +35,14 @@ export interface NewTaskData {
   due_date: string | null
   estimated_hours: number | null
   today_flag: boolean
+  // Recurring fields
+  is_recurring: boolean
+  recurrence_frequency: RecurrenceFrequency | null
+  recurrence_day_of_week: number | null
+  recurrence_day_of_month: number | null
+  recurrence_month: number | null
+  next_due_date: string | null
+  last_completed_cycle: null   // always null on creation
 }
 
 const categories: Category[] = [
@@ -39,6 +52,14 @@ const categories: Category[] = [
 const priorities: Priority[] = ['High', 'Medium', 'Low']
 const statuses: Status[]     = ['Todo', 'In Progress', 'Done']
 
+const FREQ_OPTIONS: RecurrenceFrequency[] = ['daily', 'weekly', 'monthly', 'annual']
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
 const selectStyle: React.CSSProperties = {
   width: '100%', padding: '12px 16px', borderRadius: '12px',
   outline: 'none', background: 'var(--bg4)', border: '1px solid var(--border)',
@@ -46,16 +67,19 @@ const selectStyle: React.CSSProperties = {
   appearance: 'none', cursor: 'pointer',
 }
 
-const fieldLabel = (text: string) => (
-  <label
-    className="block font-mono text-xs uppercase tracking-widest mb-2"
-    style={{ color: 'var(--text3)', letterSpacing: '0.1em' }}
-  >
-    {text}
-  </label>
-)
+function fieldLabel(text: string) {
+  return (
+    <label
+      className="block font-mono text-xs uppercase tracking-widest mb-2"
+      style={{ color: 'var(--text3)', letterSpacing: '0.1em' }}
+    >
+      {text}
+    </label>
+  )
+}
 
-// ── Mobile-only Task Sheet ──────────────────────────────────────────
+// ── Mobile-only Task Sheet ──────────────────────────────────────────────────
+
 interface MobileTaskSheetProps {
   isOpen: boolean
   onClose: () => void
@@ -84,7 +108,7 @@ function MobileTaskSheet({ isOpen, onClose, title, children }: MobileTaskSheetPr
           background:    'var(--bg2)',
           borderTop:     '1px solid var(--border2)',
           boxShadow:     '0 -16px 60px rgba(0,0,0,0.5)',
-          maxHeight:     '58vh',
+          maxHeight:     '90vh',
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
@@ -124,27 +148,172 @@ function MobileTaskSheet({ isOpen, onClose, title, children }: MobileTaskSheetPr
   )
 }
 
+// ── Recurrence anchor picker ────────────────────────────────────────────────
+// Shows the appropriate sub-controls for each frequency.
+
+interface AnchorPickerProps {
+  frequency: RecurrenceFrequency
+  dayOfWeek: number
+  dayOfMonth: number
+  month: number
+  onDayOfWeek: (v: number) => void
+  onDayOfMonth: (v: number) => void
+  onMonth: (v: number) => void
+}
+
+function AnchorPicker({
+  frequency, dayOfWeek, dayOfMonth, month,
+  onDayOfWeek, onDayOfMonth, onMonth,
+}: AnchorPickerProps) {
+  // Clamp dayOfMonth to the max days in the selected month (for annual).
+  // We let the user pick freely 1–31 for monthly — clamping happens in recurrence.ts.
+  function maxDaysInMonth(m: number) {
+    // Use a non-leap year for Feb to show 28 as upper limit in picker
+    // (recurrence.ts clamps Feb 29 properly at runtime)
+    return new Date(2023, m, 0).getDate()
+  }
+
+  if (frequency === 'daily') return null
+
+  if (frequency === 'weekly') {
+    return (
+      <div>
+        {fieldLabel('Repeats on')}
+        <div className="grid grid-cols-7 gap-1">
+          {DAY_NAMES.map((name, idx) => (
+            <button
+              key={name}
+              onClick={() => onDayOfWeek(idx)}
+              className="py-2 rounded-lg font-mono text-xs transition-all duration-150"
+              style={{
+                background: dayOfWeek === idx ? 'var(--amber)' : 'var(--bg4)',
+                color:      dayOfWeek === idx ? '#0a0a0a'      : 'var(--text3)',
+                border:     dayOfWeek === idx ? 'none' : '1px solid var(--border)',
+              }}
+            >
+              {name.slice(0, 2)}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (frequency === 'monthly') {
+    // 1–31 day picker rendered as a grid
+    const days = Array.from({ length: 31 }, (_, i) => i + 1)
+    return (
+      <div>
+        {fieldLabel('Day of month')}
+        <div className="grid grid-cols-7 gap-1">
+          {days.map((d) => (
+            <button
+              key={d}
+              onClick={() => onDayOfMonth(d)}
+              className="py-2 rounded-lg font-mono text-xs transition-all duration-150"
+              style={{
+                background: dayOfMonth === d ? 'var(--amber)' : 'var(--bg4)',
+                color:      dayOfMonth === d ? '#0a0a0a'      : 'var(--text3)',
+                border:     dayOfMonth === d ? 'none' : '1px solid var(--border)',
+              }}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+        <p className="font-mono text-xs mt-2" style={{ color: 'var(--text3)' }}>
+          Days beyond the month end will fall on the last day of that month.
+        </p>
+      </div>
+    )
+  }
+
+  if (frequency === 'annual') {
+    const maxDay = maxDaysInMonth(month)
+    const clampedDay = Math.min(dayOfMonth, maxDay)
+    // If clampedDay changed, fire update so state stays consistent.
+    // We do this via useEffect in the parent to avoid re-render loops.
+    const days = Array.from({ length: maxDay }, (_, i) => i + 1)
+
+    return (
+      <div className="space-y-4">
+        <div>
+          {fieldLabel('Month')}
+          <select
+            value={month}
+            onChange={(e) => onMonth(Number(e.target.value))}
+            style={selectStyle}
+          >
+            {MONTH_NAMES.map((name, idx) => (
+              <option key={name} value={idx + 1}>{name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          {fieldLabel('Day')}
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((d) => (
+              <button
+                key={d}
+                onClick={() => onDayOfMonth(d)}
+                className="py-2 rounded-lg font-mono text-xs transition-all duration-150"
+                style={{
+                  background: clampedDay === d ? 'var(--amber)' : 'var(--bg4)',
+                  color:      clampedDay === d ? '#0a0a0a'      : 'var(--text3)',
+                  border:     clampedDay === d ? 'none' : '1px solid var(--border)',
+                }}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ── Main TaskModal ──────────────────────────────────────────────────────────
+
 export function TaskModal({
   isOpen, onClose, task, projects,
   defaultProjectId, defaultStatus,
   onSave, onDelete, onCreate,
 }: TaskModalProps) {
   const isCreating = task === null
-  const firstProjectId = defaultProjectId || projects[0]?.id || ''
 
-  const [title,          setTitle]          = useState('')
-  const [description,    setDescription]    = useState('')
-  const [projectId,      setProjectId]      = useState(firstProjectId)
-  const [status,         setStatus]         = useState<Status>(defaultStatus || 'Todo')
-  const [priority,       setPriority]       = useState<Priority>('Medium')
-  const [category,       setCategory]       = useState<Category>('Development')
-  const [dueDate,        setDueDate]        = useState('')
-  const [estHours,       setEstHours]       = useState('')
-  const [todayFlag,      setTodayFlag]      = useState(false)
-  const [deleteConfirm,  setDeleteConfirm]  = useState(false)
+  // ── Form state ─────────────────────────────────────────────────────────────
+  const [title,         setTitle]         = useState('')
+  const [description,   setDescription]   = useState('')
+  const [projectId,     setProjectId]     = useState(defaultProjectId || projects[0]?.id || '')
+  const [status,        setStatus]        = useState<Status>(defaultStatus || 'Todo')
+  const [priority,      setPriority]      = useState<Priority>('Medium')
+  const [category,      setCategory]      = useState<Category>('Development')
+  const [dueDate,       setDueDate]       = useState('')
+  const [estHours,      setEstHours]      = useState('')
+  const [todayFlag,     setTodayFlag]     = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+
+  // Recurring state
+  const [isRecurring,     setIsRecurring]     = useState(false)
+  const [frequency,       setFrequency]       = useState<RecurrenceFrequency>('weekly')
+  const [dayOfWeek,       setDayOfWeek]       = useState<number>(1)       // Monday default
+  const [dayOfMonth,      setDayOfMonth]      = useState<number>(1)
+  const [recurringMonth,  setRecurringMonth]  = useState<number>(1)       // January default
 
   const isMobile = useMediaQuery('(max-width: 768px)')
 
+  // ── Clamp dayOfMonth when month changes (annual) ──────────────────────────
+  useEffect(() => {
+    if (frequency === 'annual') {
+      const max = new Date(2023, recurringMonth, 0).getDate()
+      if (dayOfMonth > max) setDayOfMonth(max)
+    }
+  }, [recurringMonth, frequency, dayOfMonth])
+
+  // ── Populate form from task on open ───────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return
     if (task) {
@@ -158,7 +327,18 @@ export function TaskModal({
       setEstHours(task.estimated_hours?.toString() || '')
       setTodayFlag(task.today_flag)
       setDeleteConfirm(false)
+
+      // Recurring
+      const rec = task.is_recurring
+      setIsRecurring(rec)
+      if (rec && task.recurrence_frequency) {
+        setFrequency(task.recurrence_frequency)
+        setDayOfWeek(task.recurrence_day_of_week ?? 1)
+        setDayOfMonth(task.recurrence_day_of_month ?? 1)
+        setRecurringMonth(task.recurrence_month ?? 1)
+      }
     } else {
+      // Reset all
       setTitle('')
       setDescription('')
       setProjectId(defaultProjectId || projects[0]?.id || '')
@@ -169,10 +349,17 @@ export function TaskModal({
       setEstHours('')
       setTodayFlag(false)
       setDeleteConfirm(false)
+      setIsRecurring(false)
+      setFrequency('weekly')
+      setDayOfWeek(1)
+      setDayOfMonth(1)
+      setRecurringMonth(1)
     }
-  }, [isOpen, task, defaultProjectId, defaultStatus])
+  }, [isOpen, task, defaultProjectId, defaultStatus, projects])
 
   if (!isOpen) return null
+
+  // ── No projects guard ─────────────────────────────────────────────────────
   if (projects.length === 0) {
     const msg = (
       <div className="py-8 text-center">
@@ -180,14 +367,47 @@ export function TaskModal({
         <p className="font-mono text-xs" style={{ color: 'var(--text3)' }}>Create a project first.</p>
       </div>
     )
-    const title_ = 'Add task'
-    if (isMobile) return <MobileTaskSheet isOpen={isOpen} onClose={onClose} title={title_}>{msg}</MobileTaskSheet>
-    return <Modal isOpen={isOpen} onClose={onClose} title={title_}>{msg}</Modal>
+    if (isMobile) return <MobileTaskSheet isOpen={isOpen} onClose={onClose} title="Add task">{msg}</MobileTaskSheet>
+    return <Modal isOpen={isOpen} onClose={onClose} title="Add task">{msg}</Modal>
   }
 
+  // ── Compute anchor fields for submit ──────────────────────────────────────
+  function buildRecurringAnchor() {
+    switch (frequency) {
+      case 'daily':
+        return { recurrence_day_of_week: null, recurrence_day_of_month: null, recurrence_month: null }
+      case 'weekly':
+        return { recurrence_day_of_week: dayOfWeek, recurrence_day_of_month: null, recurrence_month: null }
+      case 'monthly':
+        return { recurrence_day_of_week: null, recurrence_day_of_month: dayOfMonth, recurrence_month: null }
+      case 'annual':
+        return { recurrence_day_of_week: null, recurrence_day_of_month: dayOfMonth, recurrence_month: recurringMonth }
+    }
+  }
+
+  // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = () => {
     if (!title.trim()) return
+
     if (isCreating) {
+      let nextDueDate: string | null = null
+
+      if (isRecurring) {
+        // Build a partial task shape to pass to the initial date calculator
+        const partial = {
+          is_recurring:            true,
+          recurrence_frequency:    frequency,
+          recurrence_day_of_week:  frequency === 'weekly' ? dayOfWeek : null,
+          recurrence_day_of_month: (frequency === 'monthly' || frequency === 'annual') ? dayOfMonth : null,
+          recurrence_month:        frequency === 'annual' ? recurringMonth : null,
+        } as Parameters<typeof computeInitialNextDueDate>[0]
+        nextDueDate = toISODate(computeInitialNextDueDate(partial))
+      }
+
+      const anchor = isRecurring ? buildRecurringAnchor() : {
+        recurrence_day_of_week: null, recurrence_day_of_month: null, recurrence_month: null,
+      }
+
       onCreate({
         title:           title.trim(),
         description:     description.trim() || null,
@@ -195,11 +415,49 @@ export function TaskModal({
         status,
         priority,
         category,
-        due_date:        dueDate || null,
+        // For recurring tasks, due_date stores the creation date as anchor.
+        // For one-off tasks, due_date is user-specified.
+        due_date:        isRecurring ? null : (dueDate || null),
         estimated_hours: estHours ? parseFloat(estHours) : null,
         today_flag:      todayFlag,
+        is_recurring:    isRecurring,
+        recurrence_frequency: isRecurring ? frequency : null,
+        ...anchor,
+        next_due_date:         isRecurring ? nextDueDate : (dueDate || null),
+        last_completed_cycle:  null,
       })
     } else {
+      // Editing existing task
+      let nextDueDate = task!.next_due_date
+
+      if (isRecurring && task!.is_recurring) {
+        // If still recurring, keep the existing next_due_date unless anchor changed.
+        // We detect anchor change by comparing the current task's anchor to form values.
+        const anchorChanged =
+          task!.recurrence_frequency    !== frequency ||
+          task!.recurrence_day_of_week  !== (frequency === 'weekly' ? dayOfWeek : null) ||
+          task!.recurrence_day_of_month !== ((frequency === 'monthly' || frequency === 'annual') ? dayOfMonth : null) ||
+          task!.recurrence_month        !== (frequency === 'annual' ? recurringMonth : null)
+
+        if (anchorChanged) {
+          const partial = {
+            is_recurring: true,
+            recurrence_frequency: frequency,
+            recurrence_day_of_week: frequency === 'weekly' ? dayOfWeek : null,
+            recurrence_day_of_month: (frequency === 'monthly' || frequency === 'annual') ? dayOfMonth : null,
+            recurrence_month: frequency === 'annual' ? recurringMonth : null,
+          } as Parameters<typeof computeInitialNextDueDate>[0]
+          nextDueDate = toISODate(computeInitialNextDueDate(partial))
+        }
+      } else if (!isRecurring) {
+        // Converting from recurring → one-off, or just editing a one-off
+        nextDueDate = dueDate || null
+      }
+
+      const anchor = isRecurring ? buildRecurringAnchor() : {
+        recurrence_day_of_week: null, recurrence_day_of_month: null, recurrence_month: null,
+      }
+
       onSave({
         ...task!,
         title:           title.trim(),
@@ -208,11 +466,18 @@ export function TaskModal({
         status,
         priority,
         category,
-        due_date:        dueDate || null,
+        due_date:        isRecurring ? null : (dueDate || null),
         estimated_hours: estHours ? parseFloat(estHours) : null,
         today_flag:      todayFlag,
+        is_recurring:    isRecurring,
+        recurrence_frequency: isRecurring ? frequency : null,
+        ...anchor,
+        next_due_date:   nextDueDate,
+        // Preserve last_completed_cycle — do not reset it on edit
+        last_completed_cycle: isRecurring ? task!.last_completed_cycle : null,
       })
     }
+
     onClose()
   }
 
@@ -221,9 +486,30 @@ export function TaskModal({
     else setDeleteConfirm(true)
   }
 
+  // ── Preview text for recurring configuration ──────────────────────────────
+  function recurringPreview(): string {
+    if (!isRecurring) return ''
+    const partial = {
+      is_recurring: true,
+      recurrence_frequency: frequency,
+      recurrence_day_of_week: frequency === 'weekly' ? dayOfWeek : null,
+      recurrence_day_of_month: (frequency === 'monthly' || frequency === 'annual') ? dayOfMonth : null,
+      recurrence_month: frequency === 'annual' ? recurringMonth : null,
+    } as Parameters<typeof computeInitialNextDueDate>[0]
+    try {
+      const next = computeInitialNextDueDate(partial)
+      const formatted = next.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      const label = recurrenceLabel({ ...partial } as any)
+      return `${label} · Next: ${formatted}`
+    } catch {
+      return ''
+    }
+  }
+
+  // ── Form content ──────────────────────────────────────────────────────────
   const content = (
     <div className="space-y-4">
-      {/* Title — no autoFocus on mobile to avoid keyboard popup */}
+      {/* Title */}
       <Input
         label="Title"
         value={title}
@@ -266,17 +552,101 @@ export function TaskModal({
       {/* Priority */}
       <PillToggle label="Priority" options={priorities} value={priority} onChange={setPriority} />
 
-      {/* Due date + hours — 2 cols on desktop, stacked on mobile */}
-      <div className={isMobile ? 'space-y-4' : 'grid grid-cols-2 gap-3'}>
-        {/* No wrapper div or style prop — globals.css handles iOS date overflow */}
+      {/* ── Recurring toggle ───────────────────────────────────────────────── */}
+      <div
+        className="rounded-xl p-4 space-y-4"
+        style={{ background: 'var(--bg3)', border: `1px solid ${isRecurring ? 'var(--amber)' : 'var(--border)'}` }}
+      >
+        {/* Toggle row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <RefreshCw size={14} style={{ color: isRecurring ? 'var(--amber)' : 'var(--text3)' }} />
+            <span className="font-syne text-sm font-600" style={{ color: isRecurring ? 'var(--amber)' : 'var(--text2)' }}>
+              Recurring task
+            </span>
+          </div>
+          <div
+            className="relative w-10 h-5 rounded-full cursor-pointer transition-all duration-200"
+            style={{ background: isRecurring ? 'var(--amber)' : 'var(--bg5)' }}
+            onClick={() => setIsRecurring(!isRecurring)}
+          >
+            <div
+              className="absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200"
+              style={{ background: 'var(--text)', left: isRecurring ? '22px' : '2px' }}
+            />
+          </div>
+        </div>
+
+        {/* Frequency + anchor pickers */}
+        {isRecurring && (
+          <div className="space-y-4 pt-1">
+            {/* Frequency selector */}
+            <div>
+              {fieldLabel('Frequency')}
+              <div className="grid grid-cols-4 gap-1.5">
+                {FREQ_OPTIONS.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setFrequency(f)}
+                    className="py-2 rounded-lg font-mono text-xs capitalize transition-all duration-150"
+                    style={{
+                      background: frequency === f ? 'var(--amber)' : 'var(--bg4)',
+                      color:      frequency === f ? '#0a0a0a'      : 'var(--text3)',
+                      border:     frequency === f ? 'none' : '1px solid var(--border)',
+                    }}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Anchor picker */}
+            <AnchorPicker
+              frequency={frequency}
+              dayOfWeek={dayOfWeek}
+              dayOfMonth={dayOfMonth}
+              month={recurringMonth}
+              onDayOfWeek={setDayOfWeek}
+              onDayOfMonth={setDayOfMonth}
+              onMonth={setRecurringMonth}
+            />
+
+            {/* Preview */}
+            {recurringPreview() && (
+              <p className="font-mono text-xs" style={{ color: 'var(--teal)' }}>
+                {recurringPreview()}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Due date + hours — only shown for non-recurring tasks */}
+      {!isRecurring && (
+        <div className={isMobile ? 'space-y-4' : 'grid grid-cols-2 gap-3'}>
+          <Input
+            label="Due date"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+          <Input
+            label="Est. hours"
+            type="number"
+            step="0.5"
+            min="0"
+            value={estHours}
+            onChange={(e) => setEstHours(e.target.value)}
+            placeholder="0"
+          />
+        </div>
+      )}
+
+      {/* Est. hours only for recurring (no due date picker — managed automatically) */}
+      {isRecurring && (
         <Input
-          label="Due date"
-          type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-        />
-        <Input
-          label="Est. hours"
+          label="Est. hours per cycle"
           type="number"
           step="0.5"
           min="0"
@@ -284,7 +654,7 @@ export function TaskModal({
           onChange={(e) => setEstHours(e.target.value)}
           placeholder="0"
         />
-      </div>
+      )}
 
       {/* Status (edit mode only) */}
       {!isCreating && (
@@ -346,7 +716,7 @@ export function TaskModal({
     </div>
   )
 
-  const modalTitle = isCreating ? 'Add task' : 'Edit task'
+  const modalTitle = isCreating ? 'Add task' : (task?.is_recurring ? 'Edit recurring task' : 'Edit task')
   if (isMobile) return <MobileTaskSheet isOpen={isOpen} onClose={onClose} title={modalTitle}>{content}</MobileTaskSheet>
   return <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>{content}</Modal>
 }

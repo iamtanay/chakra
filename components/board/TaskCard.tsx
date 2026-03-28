@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import type { Task, Project } from '@/types'
-import { Check, Star } from 'lucide-react'
+import { Check, Star, RefreshCw } from 'lucide-react'
+import { recurrenceLabel, recurringDueStatus, parseLocalDate, todayLocal } from '@/lib/recurrence'
 
 interface TaskCardProps {
   task: Task
@@ -25,13 +26,18 @@ const priorityBg: Record<string, string> = {
 }
 
 const categoryAbbr: Record<string, string> = {
-  Development: 'DEV',
-  Research:    'RES',
-  QA:          'QA',
-  Design:      'DSN',
-  Writing:     'WRT',
-  Review:      'REV',
-  Meeting:     'MTG',
+  Development:          'DEV',
+  Research:             'RES',
+  'Review / QA':        'QA',
+  Design:               'DSN',
+  'Journal Writing':    'JNL',
+  'Document Generation':'DOC',
+}
+
+/** Format a YYYY-MM-DD string for display without UTC-offset surprises. */
+function formatDueDate(iso: string): string {
+  const d = parseLocalDate(iso)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 export function TaskCard({
@@ -44,14 +50,34 @@ export function TaskCard({
 }: TaskCardProps) {
   const [hovered, setHovered] = useState(false)
 
+  const today = todayLocal()
+
+  // ── Date logic ─────────────────────────────────────────────────────────────
+  // For display we always use next_due_date (set for both recurring and non-recurring).
+  // next_due_date is null for Done one-off tasks — handled gracefully.
+  const displayDate = task.next_due_date || task.due_date   // fallback for pre-migration rows
+
   const isOverdue =
-    task.due_date &&
-    new Date(task.due_date) < new Date() &&
+    displayDate &&
+    parseLocalDate(displayDate) < today &&
     task.status !== 'Done'
 
-  const abbr = categoryAbbr[task.category] ?? task.category?.slice(0, 3).toUpperCase() ?? '—'
+  // For recurring tasks, get a richer due status
+  const dueStatus = task.is_recurring ? recurringDueStatus(task, today) : null
+
+  // ── Visual vars ────────────────────────────────────────────────────────────
+  const abbr   = categoryAbbr[task.category] ?? task.category?.slice(0, 3).toUpperCase() ?? '—'
   const pColor = priorityColors[task.priority] ?? 'var(--text3)'
   const pBg    = priorityBg[task.priority]    ?? 'transparent'
+
+  const dateColor = (() => {
+    if (task.is_recurring) {
+      if (dueStatus === 'overdue') return 'var(--col-high)'
+      if (dueStatus === 'due-soon') return 'var(--amber)'
+      return 'var(--text3)'
+    }
+    return isOverdue ? 'var(--col-high)' : 'var(--text3)'
+  })()
 
   return (
     <div
@@ -60,9 +86,9 @@ export function TaskCard({
       onMouseLeave={() => setHovered(false)}
       className={`relative rounded-xl cursor-pointer card-lift ${isDragging ? 'opacity-30 scale-95' : ''}`}
       style={{
-        background:   'var(--bg3)',
-        border:       '1px solid var(--border)',
-        overflow:     'hidden',
+        background: 'var(--bg3)',
+        border:     `1px solid ${task.is_recurring ? 'rgba(232,162,71,0.18)' : 'var(--border)'}`,
+        overflow:   'hidden',
       }}
     >
       {/* Priority accent bar */}
@@ -82,13 +108,28 @@ export function TaskCard({
             <span
               className="font-mono text-xs px-2 py-0.5 rounded font-500"
               style={{
-                color:      pColor,
-                background: pBg,
+                color:         pColor,
+                background:    pBg,
                 letterSpacing: '0.05em',
               }}
             >
               {abbr}
             </span>
+
+            {/* Recurring badge */}
+            {task.is_recurring && (
+              <span
+                className="flex items-center gap-1 font-mono text-xs px-2 py-0.5 rounded-full"
+                style={{
+                  color:      'var(--amber)',
+                  background: 'rgba(232,162,71,0.1)',
+                  letterSpacing: '0.03em',
+                }}
+              >
+                <RefreshCw size={9} strokeWidth={2.5} />
+                {task.recurrence_frequency}
+              </span>
+            )}
 
             {/* Project pill */}
             {project && (
@@ -146,7 +187,10 @@ export function TaskCard({
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+        <div
+          className="flex items-center justify-between mt-3 pt-3"
+          style={{ borderTop: '1px solid var(--border)' }}
+        >
           <div className="flex items-center gap-2">
             <span
               className="w-1.5 h-1.5 rounded-full"
@@ -158,12 +202,12 @@ export function TaskCard({
           </div>
 
           <div className="flex items-center gap-2">
-            {task.due_date && (
+            {displayDate && (
               <span
                 className="font-mono text-xs"
-                style={{ color: isOverdue ? 'var(--col-high)' : 'var(--text3)' }}
+                style={{ color: dateColor }}
               >
-                {new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {formatDueDate(displayDate)}
               </span>
             )}
             {task.estimated_hours && (
@@ -178,7 +222,7 @@ export function TaskCard({
         </div>
       </div>
 
-      {/* Complete button — always visible on mobile, hover on desktop */}
+      {/* Complete button */}
       <button
         onClick={(e) => { e.stopPropagation(); onComplete(task) }}
         className={`
@@ -189,12 +233,17 @@ export function TaskCard({
           ${hovered ? 'md:opacity-100 md:scale-100' : ''}
         `}
         style={{
-          background: 'var(--teal)',
-          boxShadow: '0 0 12px rgba(45,212,191,0.35)',
+          background: task.is_recurring ? 'var(--amber)' : 'var(--teal)',
+          boxShadow:  task.is_recurring
+            ? '0 0 12px rgba(232,162,71,0.35)'
+            : '0 0 12px rgba(45,212,191,0.35)',
         }}
-        title="Mark complete"
+        title={task.is_recurring ? 'Complete this cycle' : 'Mark complete'}
       >
-        <Check size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
+        {task.is_recurring
+          ? <RefreshCw size={13} style={{ color: '#080909' }} strokeWidth={2.5} />
+          : <Check     size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
+        }
       </button>
     </div>
   )

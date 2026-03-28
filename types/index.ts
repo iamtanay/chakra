@@ -12,6 +12,8 @@ export type Status = 'Todo' | 'In Progress' | 'Done'
 
 export type ProjectType = 'Work' | 'Study' | 'Personal'
 
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'annual'
+
 export interface Project {
   id: string
   name: string
@@ -28,12 +30,21 @@ export interface Task {
   status: Status
   priority: Priority
   category: Category
-  due_date: string | null
+  due_date: string | null           // For one-off: the due date. For recurring: the start/anchor date.
   estimated_hours: number | null
   actual_hours: number | null
   today_flag: boolean
   created_at: string
   completed_at: string | null
+
+  // ── Recurring fields ──────────────────────────────────────────────────────
+  is_recurring: boolean
+  recurrence_frequency: RecurrenceFrequency | null
+  recurrence_day_of_week: number | null    // 0–6, Sun=0; weekly tasks
+  recurrence_day_of_month: number | null   // 1–31; monthly + annual tasks
+  recurrence_month: number | null          // 1–12; annual tasks
+  last_completed_cycle: string | null      // ISO date string (YYYY-MM-DD)
+  next_due_date: string | null             // ISO date string (YYYY-MM-DD)
 }
 
 export interface DailyPulse {

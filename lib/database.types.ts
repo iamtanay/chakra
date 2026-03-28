@@ -54,6 +54,13 @@ export type Database = {
           today_flag: boolean
           created_at: string
           completed_at: string | null
+          is_recurring: boolean
+          recurrence_frequency: 'daily' | 'weekly' | 'monthly' | 'annual' | null
+          recurrence_day_of_week: number | null
+          recurrence_day_of_month: number | null
+          recurrence_month: number | null
+          last_completed_cycle: string | null
+          next_due_date: string | null
         }
         Insert: {
           id?: string
@@ -75,6 +82,13 @@ export type Database = {
           today_flag?: boolean
           created_at?: string
           completed_at?: string | null
+          is_recurring?: boolean
+          recurrence_frequency?: 'daily' | 'weekly' | 'monthly' | 'annual' | null
+          recurrence_day_of_week?: number | null
+          recurrence_day_of_month?: number | null
+          recurrence_month?: number | null
+          last_completed_cycle?: string | null
+          next_due_date?: string | null
         }
         Update: {
           id?: string
@@ -96,6 +110,13 @@ export type Database = {
           today_flag?: boolean
           created_at?: string
           completed_at?: string | null
+          is_recurring?: boolean
+          recurrence_frequency?: 'daily' | 'weekly' | 'monthly' | 'annual' | null
+          recurrence_day_of_week?: number | null
+          recurrence_day_of_month?: number | null
+          recurrence_month?: number | null
+          last_completed_cycle?: string | null
+          next_due_date?: string | null
         }
         Relationships: [
           {

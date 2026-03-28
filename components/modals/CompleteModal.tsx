@@ -5,7 +5,8 @@ import { Modal } from '@/components/ui/Modal'
 import { BottomSheet } from '@/components/ui/BottomSheet'
 import type { Task } from '@/types'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, RefreshCw } from 'lucide-react'
+import { recurrenceLabel } from '@/lib/recurrence'
 
 interface CompleteModalProps {
   isOpen: boolean
@@ -30,29 +31,57 @@ export function CompleteModal({ isOpen, onClose, task, onConfirm }: CompleteModa
 
   if (!task) return null
 
-  const handleChip = (hours: number) => { onConfirm(hours); setShowCustom(false); setCustomHours('') }
+  const isRecurring = task.is_recurring
+
+  const handleChip = (hours: number) => {
+    onConfirm(hours)
+    setShowCustom(false)
+    setCustomHours('')
+  }
   const handleCustom = () => {
     const h = parseFloat(customHours)
-    if (!isNaN(h) && h > 0) { onConfirm(h); setShowCustom(false); setCustomHours('') }
+    if (!isNaN(h) && h > 0) {
+      onConfirm(h)
+      setShowCustom(false)
+      setCustomHours('')
+    }
   }
-  const handleSkip = () => { onConfirm(null); setShowCustom(false); setCustomHours('') }
+  const handleSkip = () => {
+    onConfirm(null)
+    setShowCustom(false)
+    setCustomHours('')
+  }
 
   const content = (
     <div className="space-y-6">
       {/* Task display */}
       <div
         className="rounded-xl px-4 py-3"
-        style={{ background: 'rgba(45,212,191,0.07)', border: '1px solid rgba(45,212,191,0.2)' }}
+        style={{
+          background: isRecurring ? 'rgba(232,162,71,0.07)' : 'rgba(45,212,191,0.07)',
+          border:     isRecurring ? '1px solid rgba(232,162,71,0.25)' : '1px solid rgba(45,212,191,0.2)',
+        }}
       >
         <div className="flex items-center gap-2 mb-1">
-          <CheckCircle2 size={14} style={{ color: 'var(--teal)' }} />
-          <span className="font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--teal)' }}>
-            Completing
+          {isRecurring
+            ? <RefreshCw size={14} style={{ color: 'var(--amber)' }} />
+            : <CheckCircle2 size={14} style={{ color: 'var(--teal)' }} />
+          }
+          <span
+            className="font-mono text-xs uppercase tracking-widest"
+            style={{ color: isRecurring ? 'var(--amber)' : 'var(--teal)' }}
+          >
+            {isRecurring ? 'Complete cycle' : 'Completing'}
           </span>
         </div>
         <p className="font-syne font-600 text-sm" style={{ color: 'var(--text)' }}>
           {task.title}
         </p>
+        {isRecurring && (
+          <p className="font-mono text-xs mt-1" style={{ color: 'var(--text3)' }}>
+            {recurrenceLabel(task)} · This cycle will advance to the next occurrence.
+          </p>
+        )}
         {task.estimated_hours && (
           <p className="font-mono text-xs mt-1" style={{ color: 'var(--text3)' }}>
             Est. {task.estimated_hours}h
@@ -62,7 +91,7 @@ export function CompleteModal({ isOpen, onClose, task, onConfirm }: CompleteModa
 
       {/* Question */}
       <p className="font-syne text-sm" style={{ color: 'var(--text2)' }}>
-        How long did this actually take?
+        How long did this {isRecurring ? 'cycle' : ''} actually take?
       </p>
 
       {!showCustom ? (
@@ -80,16 +109,20 @@ export function CompleteModal({ isOpen, onClose, task, onConfirm }: CompleteModa
                   border:     '1px solid var(--border)',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background   = 'var(--teal)'
-                  e.currentTarget.style.color        = '#080909'
-                  e.currentTarget.style.borderColor  = 'var(--teal)'
-                  e.currentTarget.style.boxShadow    = '0 0 12px rgba(45,212,191,0.3)'
+                  const col = isRecurring ? 'var(--amber)' : 'var(--teal)'
+                  const shadow = isRecurring
+                    ? '0 0 12px rgba(232,162,71,0.3)'
+                    : '0 0 12px rgba(45,212,191,0.3)'
+                  e.currentTarget.style.background  = col
+                  e.currentTarget.style.color       = '#080909'
+                  e.currentTarget.style.borderColor = col
+                  e.currentTarget.style.boxShadow   = shadow
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background   = 'var(--bg4)'
-                  e.currentTarget.style.color        = 'var(--text2)'
-                  e.currentTarget.style.borderColor  = 'var(--border)'
-                  e.currentTarget.style.boxShadow    = 'none'
+                  e.currentTarget.style.background  = 'var(--bg4)'
+                  e.currentTarget.style.color       = 'var(--text2)'
+                  e.currentTarget.style.borderColor = 'var(--border)'
+                  e.currentTarget.style.boxShadow   = 'none'
                 }}
               >
                 {chip.label}
@@ -134,7 +167,10 @@ export function CompleteModal({ isOpen, onClose, task, onConfirm }: CompleteModa
             <button
               onClick={handleCustom}
               className="flex-1 py-3 rounded-xl font-syne font-600 text-sm"
-              style={{ background: 'var(--teal)', color: '#080909' }}
+              style={{
+                background: isRecurring ? 'var(--amber)' : 'var(--teal)',
+                color: '#080909',
+              }}
             >
               Confirm
             </button>
@@ -151,8 +187,10 @@ export function CompleteModal({ isOpen, onClose, task, onConfirm }: CompleteModa
     </div>
   )
 
+  const title = isRecurring ? 'Complete cycle' : 'Log time'
+
   if (isMobile) {
-    return <BottomSheet isOpen={isOpen} onClose={onClose} title="Log time">{content}</BottomSheet>
+    return <BottomSheet isOpen={isOpen} onClose={onClose} title={title}>{content}</BottomSheet>
   }
-  return <Modal isOpen={isOpen} onClose={onClose} title="Log time">{content}</Modal>
+  return <Modal isOpen={isOpen} onClose={onClose} title={title}>{content}</Modal>
 }
