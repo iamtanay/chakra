@@ -6,6 +6,7 @@ import { LayoutDashboard, FolderKanban, BarChart3, Settings, Sun, Moon, LogOut, 
 import { createClient } from '@/lib/supabase'
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
+import { NotificationToggle } from '@/components/ui/NotificationToggle'
 
 const NAV_ITEMS = [
   { href: '/',         label: 'Board',    Icon: LayoutDashboard },
@@ -169,6 +170,9 @@ export function BottomNav() {
                   />
                 </div>
               </div>
+
+              {/* Notification toggle */}
+              <NotificationToggle />
 
               {/* Logout row */}
               <button
