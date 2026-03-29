@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Logo } from '@/components/ui/Logo'
-import { NotificationToggle } from '@/components/ui/NotificationToggle'
 import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Sun, Moon } from 'lucide-react'
 import type { Project } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
@@ -163,11 +162,6 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
 
       {/* ── Bottom section ── */}
       <div className="px-3 pt-3 pb-5 mt-auto flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-
-        {/* Notification toggle */}
-        <div className="mb-3">
-          <NotificationToggle />
-        </div>
 
         {/* Theme toggle */}
         <button

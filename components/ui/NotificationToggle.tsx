@@ -1,116 +1,89 @@
-// components/ui/NotificationToggle.tsx
-//
-// A self-contained settings toggle for push notifications.
-// Drop this anywhere in your settings/sidebar UI.
-//
-// Shows:
-//   - Bell icon with status label
-//   - Subtle enable/disable button
-//   - Contextual help text (iOS PWA instructions, denied state, etc.)
-
 'use client'
 
-import { Bell, BellOff, BellRing, Loader2 } from 'lucide-react'
+import { Bell, BellOff, BellRing, Loader2, Moon } from 'lucide-react'
 import { usePushNotifications, type PushPermission } from '@/hooks/usePushNotifications'
-
-// ── Sub-components ────────────────────────────────────────────────────────────
+import { useEffect, useState } from 'react'
 
 function StatusIcon({ permission, isSubscribed, isLoading }: {
   permission: PushPermission
   isSubscribed: boolean
   isLoading: boolean
 }) {
-  if (isLoading) return <Loader2 size={15} className="animate-spin" style={{ color: 'var(--text3)' }} />
-  if (isSubscribed) return <BellRing size={15} style={{ color: 'var(--amber)' }} />
-  if (permission === 'denied') return <BellOff size={15} style={{ color: 'var(--rose)' }} />
-  return <Bell size={15} style={{ color: 'var(--text3)' }} />
+  if (isLoading)    return <Loader2 size={16} className="animate-spin" style={{ color: 'var(--text3)' }} />
+  if (isSubscribed) return <BellRing size={16} style={{ color: 'var(--amber)' }} />
+  if (permission === 'denied') return <BellOff size={16} style={{ color: 'var(--text3)' }} />
+  return <Bell size={16} style={{ color: 'var(--text3)' }} />
 }
 
-function helpText(permission: PushPermission, isSubscribed: boolean): string | null {
-  if (isSubscribed) return 'You\'ll receive a morning briefing at 11 AM and an evening reminder at 8 PM.'
-  if (permission === 'denied') return 'Notifications are blocked. Reset permission in your browser settings.'
-  if (permission === 'needs-pwa') return 'Add Chakra to your home screen first, then enable notifications.'
-  if (permission === 'unsupported') return 'Your browser doesn\'t support push notifications.'
-  return 'Get a daily briefing of pending tasks and an evening log reminder.'
+function helpText(permission: PushPermission): string {
+  if (permission === 'denied')    return 'Notifications blocked. Reset in browser settings.'
+  if (permission === 'needs-pwa') return 'Add Chakra to home screen first.'
+  if (permission === 'unsupported') return 'Not supported in this browser.'
+  return 'Morning briefing at 11 AM · Evening reminder at 8 PM.'
 }
-
-// ── Main component ─────────────────────────────────────────────────────────────
 
 export function NotificationToggle() {
   const { permission, isSubscribed, isLoading, subscribe, unsubscribe } = usePushNotifications()
+  const [showHint, setShowHint] = useState(false)
+
+  // Show hint for 3 seconds after subscribing
+  useEffect(() => {
+    if (!isSubscribed) { setShowHint(false); return }
+    setShowHint(true)
+    const t = setTimeout(() => setShowHint(false), 3000)
+    return () => clearTimeout(t)
+  }, [isSubscribed])
 
   const unavailable = permission === 'unsupported' || permission === 'denied' || permission === 'needs-pwa'
-  const help = helpText(permission, isSubscribed)
 
   const handleToggle = () => {
     if (isLoading || unavailable) return
-    if (isSubscribed) {
-      unsubscribe()
-    } else {
-      subscribe()
-    }
+    if (isSubscribed) unsubscribe()
+    else subscribe()
   }
 
   return (
-    <div
-      className="rounded-xl p-3 flex flex-col gap-2.5"
-      style={{
-        background:   'var(--bg3)',
-        border:       '1px solid var(--border)',
-      }}
-    >
-      {/* Row: icon + label + toggle */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <StatusIcon
-            permission={permission}
-            isSubscribed={isSubscribed}
-            isLoading={isLoading}
-          />
-          <span
-            className="font-syne text-xs font-medium"
-            style={{ color: 'var(--text)' }}
-          >
-            Notifications
+    <div className="flex flex-col gap-2">
+      {/* Row — matches theme toggle row exactly */}
+      <div
+        className="flex items-center justify-between px-4 py-3.5 rounded-xl"
+        style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}
+      >
+        <div className="flex items-center gap-3">
+          <StatusIcon permission={permission} isSubscribed={isSubscribed} isLoading={isLoading} />
+          <span className="font-syne text-sm font-500" style={{ color: 'var(--text)' }}>
+            {isSubscribed ? 'Notifications on' : 'Notifications'}
           </span>
         </div>
 
-        {/* Toggle pill */}
-        <button
-          onClick={handleToggle}
-          disabled={isLoading || unavailable}
-          aria-label={isSubscribed ? 'Disable notifications' : 'Enable notifications'}
-          className="relative flex-shrink-0 rounded-full transition-all duration-200"
+        {/* Toggle pill — identical dimensions to theme toggle */}
+        <div
+          className="relative w-12 h-6 rounded-full transition-colors duration-300 flex-shrink-0"
           style={{
-            width:      '36px',
-            height:     '20px',
-            background: isSubscribed
-              ? 'var(--amber)'
-              : 'var(--bg5)',
+            background: isSubscribed ? 'var(--amber)' : 'var(--bg5)',
             opacity:    (isLoading || unavailable) ? 0.4 : 1,
             cursor:     (isLoading || unavailable) ? 'not-allowed' : 'pointer',
-            border:     '1px solid var(--border2)',
           }}
+          onClick={handleToggle}
         >
-          <span
-            className="absolute top-0.5 rounded-full transition-all duration-200"
+          <div
+            className="absolute top-1 w-4 h-4 rounded-full transition-all duration-300"
             style={{
-              width:      '14px',
-              height:     '14px',
-              background: 'var(--text)',
-              left:       isSubscribed ? 'calc(100% - 16px)' : '2px',
+              background: '#fff',
+              left:       isSubscribed ? '28px' : '4px',
+              boxShadow:  '0 1px 3px rgba(0,0,0,0.3)',
             }}
           />
-        </button>
+        </div>
       </div>
 
-      {/* Help text */}
-      {help && (
+      {/* Transient hint — only shown for 3s after enabling, or for error states */}
+      {(showHint || unavailable) && (
         <p
-          className="font-mono text-xs leading-relaxed"
+          className="font-mono text-xs px-1 leading-relaxed transition-opacity duration-300"
           style={{ color: 'var(--text3)' }}
         >
-          {help}
+          {unavailable ? helpText(permission) : helpText(permission)}
         </p>
       )}
     </div>
