@@ -1,8 +1,8 @@
 'use client'
 
-import { Bell, BellOff, BellRing, Loader2, Moon } from 'lucide-react'
+import { Bell, BellOff, BellRing, Loader2 } from 'lucide-react'
 import { usePushNotifications, type PushPermission } from '@/hooks/usePushNotifications'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 function StatusIcon({ permission, isSubscribed, isLoading }: {
   permission: PushPermission
@@ -16,8 +16,8 @@ function StatusIcon({ permission, isSubscribed, isLoading }: {
 }
 
 function helpText(permission: PushPermission): string {
-  if (permission === 'denied')    return 'Notifications blocked. Reset in browser settings.'
-  if (permission === 'needs-pwa') return 'Add Chakra to home screen first.'
+  if (permission === 'denied')      return 'Notifications blocked. Reset in browser settings.'
+  if (permission === 'needs-pwa')   return 'Add Chakra to home screen first.'
   if (permission === 'unsupported') return 'Not supported in this browser.'
   return 'Morning briefing at 11 AM · Evening reminder at 8 PM.'
 }
@@ -25,9 +25,13 @@ function helpText(permission: PushPermission): string {
 export function NotificationToggle() {
   const { permission, isSubscribed, isLoading, subscribe, unsubscribe } = usePushNotifications()
   const [showHint, setShowHint] = useState(false)
+  const isFirstRender = useRef(true)
 
-  // Show hint for 3 seconds after subscribing
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
     if (!isSubscribed) { setShowHint(false); return }
     setShowHint(true)
     const t = setTimeout(() => setShowHint(false), 3000)
@@ -77,13 +81,13 @@ export function NotificationToggle() {
         </div>
       </div>
 
-      {/* Transient hint — only shown for 3s after enabling, or for error states */}
+      {/* Transient hint — only shown for 3s after manually enabling, or for persistent error states */}
       {(showHint || unavailable) && (
         <p
-          className="font-mono text-xs px-1 leading-relaxed transition-opacity duration-300"
+          className="font-mono text-xs px-1 leading-relaxed"
           style={{ color: 'var(--text3)' }}
         >
-          {unavailable ? helpText(permission) : helpText(permission)}
+          {helpText(permission)}
         </p>
       )}
     </div>
