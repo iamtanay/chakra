@@ -6,7 +6,7 @@
 //   1. Fetches all push subscriptions
 //   2. Checks if the user has any tasks done today without actual_hours logged
 //      OR any today_flag tasks that are still not Done
-//   3. Sends a "time to log" reminder if warranted; skips if the day is clean
+//   3. Sends a "time to log" reminder if warranted; skips if the day is clean.
 
 import { NextResponse }                    from 'next/server'
 import webpush                             from 'web-push'
