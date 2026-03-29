@@ -22,6 +22,24 @@ const statusConfig: Record<Status, { label: string; color: string }> = {
   'Done':         { label: 'DONE', color: 'var(--col-done)' },
 }
 
+const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 }
+
+function sortTasks(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    // 1. Due date: nearest first, nulls last
+    const aDate = a.next_due_date ?? a.due_date
+    const bDate = b.next_due_date ?? b.due_date
+    if (aDate && bDate) {
+      const diff = aDate.localeCompare(bDate)
+      if (diff !== 0) return diff
+    } else if (aDate) return -1
+    else if (bDate) return 1
+
+    // 2. Priority: High → Medium → Low
+    return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
+  })
+}
+
 export function MobileBoard({
   tasks, projects,
   onCardClick, onComplete, onTodayToggle, onStatusChange, onAddTask,
@@ -31,7 +49,7 @@ export function MobileBoard({
   const touchStartX = useRef(0)
   const touchStartY = useRef(0)
   const projectsMap = new Map(projects.map((p) => [p.id, p]))
-  const col = tasks.filter((t) => t.status === activeStatus)
+  const col = sortTasks(tasks.filter((t) => t.status === activeStatus))
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0]
@@ -112,6 +130,18 @@ export function MobileBoard({
           </button>
         ) : (
           <>
+            {/* Add task — top of list */}
+            <button
+              onClick={() => onAddTask(activeStatus)}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all duration-150"
+              style={{ border: '1px dashed var(--border2)', color: 'var(--text3)' }}
+              onTouchStart={(e) => e.currentTarget.style.color = 'var(--amber)'}
+              onTouchEnd={(e) => e.currentTarget.style.color = 'var(--text3)'}
+            >
+              <Plus size={14} />
+              <span className="font-mono text-xs">Add task</span>
+            </button>
+
             {col.map((task) => {
               const swiping    = swipeState?.taskId === task.id
               const dist       = swiping ? swipeState!.distance : 0
@@ -153,16 +183,6 @@ export function MobileBoard({
                 </div>
               )
             })}
-
-            {/* Add more at bottom */}
-            <button
-              onClick={() => onAddTask(activeStatus)}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all duration-150"
-              style={{ border: '1px dashed var(--border2)', color: 'var(--text3)' }}
-            >
-              <Plus size={14} />
-              <span className="font-mono text-xs">Add task</span>
-            </button>
           </>
         )}
       </div>

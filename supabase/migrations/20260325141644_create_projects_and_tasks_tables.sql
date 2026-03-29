@@ -49,15 +49,44 @@ CREATE TABLE IF NOT EXISTS tasks (
   project_id uuid REFERENCES projects(id) ON DELETE CASCADE,
   title text NOT NULL,
   description text,
+
   status text NOT NULL DEFAULT 'Todo'
     CHECK (status IN ('Todo', 'In Progress', 'Done')),
+
   priority text NOT NULL DEFAULT 'Medium'
     CHECK (priority IN ('High', 'Medium', 'Low')),
+
   category text NOT NULL
     CHECK (category IN (
-      'Document Generation', 'Journal Writing',
-      'Research', 'Development', 'Review / QA', 'Design'
+      -- Work
+      'Document Generation',
+      'Journal Writing',
+      'Research',
+      'Development',
+      'Review / QA',
+      'Design',
+
+      -- Personal
+      'Finance & Banking',
+      'Bills & Payments',
+      'Home & Maintenance',
+      'Cleaning & Chores',
+      'Health & Wellness',
+      'Errands & Shopping',
+      'Family & Social',
+      'Travel & Bookings',
+      'Legal & Admin',
+      'Self Care',
+
+      -- Study
+      'Reading',
+      'Note Taking',
+      'Practice',
+      'Revision',
+      'Assignment',
+      'Exam Prep'
     )),
+
   due_date date,
   estimated_hours numeric(4,1),
   actual_hours numeric(4,1),

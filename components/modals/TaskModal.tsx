@@ -287,7 +287,10 @@ export function TaskModal({
   const [projectId,     setProjectId]     = useState(defaultProjectId || projects[0]?.id || '')
   const [status,        setStatus]        = useState<Status>(defaultStatus || 'Todo')
   const [priority,      setPriority]      = useState<Priority>('Medium')
-  const [category,      setCategory]      = useState<Category>('Development')
+  const [category,      setCategory]      = useState<Category>(() => {
+    const initProject = projects.find((p) => p.id === (defaultProjectId || projects[0]?.id))
+    return initProject ? getDefaultCategoryForProjectType(initProject.type) : 'Development'
+  })
   const [dueDate,       setDueDate]       = useState('')
   const [estHours,      setEstHours]      = useState('')
   const [todayFlag,     setTodayFlag]     = useState(false)
@@ -308,15 +311,6 @@ export function TaskModal({
     ? getCategoriesForProjectType(selectedProject.type)
     : getCategoriesForProjectType('Work')
 
-  // ── Reset category when project changes (if current category not valid) ──
-  useEffect(() => {
-    if (!selectedProject) return
-    const validCategories = getCategoriesForProjectType(selectedProject.type)
-    if (!validCategories.includes(category as any)) {
-      setCategory(getDefaultCategoryForProjectType(selectedProject.type))
-    }
-  }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Clamp dayOfMonth when month changes (annual) ──────────────────────────
   useEffect(() => {
     if (frequency === 'annual') {
@@ -334,7 +328,11 @@ export function TaskModal({
       setProjectId(task.project_id)
       setStatus(task.status)
       setPriority(task.priority)
-      setCategory(task.category)
+      // Ensure the saved category is still valid for this project type.
+      // If the project type changed since the task was created, fall back to default.
+      const taskProject = projects.find((p) => p.id === task.project_id)
+      const validCats = taskProject ? getCategoriesForProjectType(taskProject.type) : getCategoriesForProjectType('Work')
+      setCategory(validCats.includes(task.category as any) ? task.category : getDefaultCategoryForProjectType(taskProject?.type ?? 'Work'))
       setDueDate(task.due_date || '')
       setEstHours(task.estimated_hours?.toString() || '')
       setTodayFlag(task.today_flag)
@@ -549,7 +547,21 @@ export function TaskModal({
       {/* Project */}
       <div>
         {fieldLabel('Project')}
-        <select value={projectId} onChange={(e) => setProjectId(e.target.value)} style={selectStyle}>
+        <select
+          value={projectId}
+          onChange={(e) => {
+            const newProjectId = e.target.value
+            setProjectId(newProjectId)
+            const newProject = projects.find((p) => p.id === newProjectId)
+            if (newProject) {
+              const validCats = getCategoriesForProjectType(newProject.type)
+              if (!validCats.includes(category as any)) {
+                setCategory(getDefaultCategoryForProjectType(newProject.type))
+              }
+            }
+          }}
+          style={selectStyle}
+        >
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
@@ -733,3 +745,4 @@ export function TaskModal({
   if (isMobile) return <MobileTaskSheet isOpen={isOpen} onClose={onClose} title={modalTitle}>{content}</MobileTaskSheet>
   return <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>{content}</Modal>
 }
+

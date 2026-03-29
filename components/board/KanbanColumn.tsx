@@ -27,6 +27,24 @@ const statusConfig = {
   Done:          { label: 'DONE',        color: 'var(--col-done)', dim: 'rgba(45,212,191,0.04)'  },
 }
 
+const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 }
+
+function sortTasks(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    // 1. Due date: nearest first, nulls last
+    const aDate = a.next_due_date ?? a.due_date
+    const bDate = b.next_due_date ?? b.due_date
+    if (aDate && bDate) {
+      const diff = aDate.localeCompare(bDate)
+      if (diff !== 0) return diff
+    } else if (aDate) return -1
+    else if (bDate) return 1
+
+    // 2. Priority: High → Medium → Low
+    return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
+  })
+}
+
 export function KanbanColumn({
   status, tasks, projects,
   onCardClick, onComplete, onTodayToggle,
@@ -36,7 +54,7 @@ export function KanbanColumn({
   onAddTask,
 }: KanbanColumnProps) {
   const cfg = statusConfig[status]
-  const col = tasks.filter((t) => t.status === status)
+  const col = sortTasks(tasks.filter((t) => t.status === status))
 
   return (
     <div
@@ -122,6 +140,18 @@ export function KanbanColumn({
           </button>
         ) : (
           <>
+            {/* Add task — top of list */}
+            <button
+              onClick={() => onAddTask(status)}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all duration-150"
+              style={{ color: 'var(--text3)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--amber)'; e.currentTarget.style.background = 'var(--bg4)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text3)'; e.currentTarget.style.background = 'transparent' }}
+            >
+              <Plus size={12} />
+              <span className="font-mono text-xs">Add task</span>
+            </button>
+
             {col.map((task) => (
               <div
                 key={task.id}
@@ -143,16 +173,6 @@ export function KanbanColumn({
                 />
               </div>
             ))}
-            <button
-              onClick={() => onAddTask(status)}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all duration-150"
-              style={{ color: 'var(--text3)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--amber)'; e.currentTarget.style.background = 'var(--bg4)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text3)'; e.currentTarget.style.background = 'transparent' }}
-            >
-              <Plus size={12} />
-              <span className="font-mono text-xs">Add task</span>
-            </button>
           </>
         )}
       </div>
