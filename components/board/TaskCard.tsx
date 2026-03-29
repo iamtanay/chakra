@@ -26,12 +26,31 @@ const priorityBg: Record<string, string> = {
 }
 
 const categoryAbbr: Record<string, string> = {
-  Development:          'DEV',
-  Research:             'RES',
-  'Review / QA':        'QA',
-  Design:               'DSN',
-  'Journal Writing':    'JNL',
-  'Document Generation':'DOC',
+  // Work
+  Development:            'DEV',
+  Research:               'RES',
+  'Review / QA':          'QA',
+  Design:                 'DSN',
+  'Journal Writing':      'JNL',
+  'Document Generation':  'DOC',
+  // Personal
+  'Finance & Banking':    'FIN',
+  'Bills & Payments':     'BILL',
+  'Home & Maintenance':   'HOME',
+  'Cleaning & Chores':    'CLN',
+  'Health & Wellness':    'HLTH',
+  'Errands & Shopping':   'ERR',
+  'Family & Social':      'FAM',
+  'Travel & Bookings':    'TRV',
+  'Legal & Admin':        'LGL',
+  'Self Care':            'SLF',
+  // Study
+  Reading:                'READ',
+  'Note Taking':          'NOTE',
+  Practice:               'PRAC',
+  Revision:               'REV',
+  Assignment:             'ASGN',
+  'Exam Prep':            'EXAM',
 }
 
 /** Format a YYYY-MM-DD string for display without UTC-offset surprises. */

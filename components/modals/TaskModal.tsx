@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { PillToggle } from '@/components/ui/PillToggle'
 import type { Task, Project, Status, Priority, Category, RecurrenceFrequency } from '@/types'
+import { getCategoriesForProjectType, getDefaultCategoryForProjectType } from '@/types'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { X, RefreshCw } from 'lucide-react'
 import {
@@ -45,10 +46,6 @@ export interface NewTaskData {
   last_completed_cycle: null   // always null on creation
 }
 
-const categories: Category[] = [
-  'Document Generation', 'Journal Writing', 'Research',
-  'Development', 'Review / QA', 'Design',
-]
 const priorities: Priority[] = ['High', 'Medium', 'Low']
 const statuses: Status[]     = ['Todo', 'In Progress', 'Done']
 
@@ -305,6 +302,21 @@ export function TaskModal({
 
   const isMobile = useMediaQuery('(max-width: 768px)')
 
+  // ── Derive available categories from the selected project's type ──────────
+  const selectedProject = projects.find((p) => p.id === projectId)
+  const availableCategories = selectedProject
+    ? getCategoriesForProjectType(selectedProject.type)
+    : getCategoriesForProjectType('Work')
+
+  // ── Reset category when project changes (if current category not valid) ──
+  useEffect(() => {
+    if (!selectedProject) return
+    const validCategories = getCategoriesForProjectType(selectedProject.type)
+    if (!validCategories.includes(category as any)) {
+      setCategory(getDefaultCategoryForProjectType(selectedProject.type))
+    }
+  }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Clamp dayOfMonth when month changes (annual) ──────────────────────────
   useEffect(() => {
     if (frequency === 'annual') {
@@ -344,7 +356,8 @@ export function TaskModal({
       setProjectId(defaultProjectId || projects[0]?.id || '')
       setStatus(defaultStatus || 'Todo')
       setPriority('Medium')
-      setCategory('Development')
+      const resetProject = projects.find((p) => p.id === (defaultProjectId || projects[0]?.id))
+      setCategory(resetProject ? getDefaultCategoryForProjectType(resetProject.type) : 'Development')
       setDueDate('')
       setEstHours('')
       setTodayFlag(false)
@@ -545,7 +558,7 @@ export function TaskModal({
       <div>
         {fieldLabel('Category')}
         <select value={category} onChange={(e) => setCategory(e.target.value as Category)} style={selectStyle}>
-          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          {availableCategories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
 
