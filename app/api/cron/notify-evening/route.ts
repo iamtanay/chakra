@@ -6,6 +6,7 @@
 //   1. Fetches all push subscriptions
 //   2. Checks if the user has any tasks done today without actual_hours logged
 //      OR any today_flag tasks that are still not Done
+//      OR any tasks due today (due_date / next_due_date) that are still not Done
 //   3. Sends a "time to log" reminder if warranted; skips if the day is clean.
 
 import { NextResponse }                    from 'next/server'
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
     // Tasks completed today (to check if hours were logged)
     const { data: doneTodayRaw, error: doneError } = await supabase
       .from('tasks')
-      .select('id, title, actual_hours, completed_at, today_flag, project_id, projects(name, color)')
+      .select('id, title, actual_hours, completed_at, today_flag, due_date, project_id, projects(name, color)')
       .eq('status', 'Done')
       .gte('completed_at', todayStart)
       .lte('completed_at', todayEnd)
@@ -64,14 +65,28 @@ export async function GET(request: Request) {
     // Today-flagged tasks still not done
     const { data: stillPendingRaw, error: pendingError } = await supabase
       .from('tasks')
-      .select('id, title, status, priority, today_flag, project_id, projects(name, color)')
+      .select('id, title, status, priority, today_flag, due_date, project_id, projects(name, color)')
       .eq('today_flag', true)
       .neq('status', 'Done')
 
     if (pendingError) throw pendingError
 
-    const doneToday    = (doneTodayRaw    || []) as unknown as TaskRow[]
-    const stillPending = (stillPendingRaw || []) as unknown as TaskRow[]
+    // Tasks due today that are still not done (and not already captured by today_flag)
+    const { data: dueTodayPendingRaw, error: dueError } = await supabase
+      .from('tasks')
+      .select('id, title, status, priority, today_flag, due_date, project_id, projects(name, color)')
+      .or(`due_date.eq.${todayISO},next_due_date.eq.${todayISO}`)
+      .neq('status', 'Done')
+      .eq('today_flag', false)   // avoid double-counting tasks already in stillPending
+
+    if (dueError) throw dueError
+
+    const doneToday        = (doneTodayRaw       || []) as unknown as TaskRow[]
+    const todayFlagPending = (stillPendingRaw     || []) as unknown as TaskRow[]
+    const dueTodayPending  = (dueTodayPendingRaw  || []) as unknown as TaskRow[]
+
+    // Merge: today_flag pending + due-today pending (no duplicates since we filtered above)
+    const stillPending = [...todayFlagPending, ...dueTodayPending]
 
     // Unlogged = completed today but no actual_hours recorded
     const unlogged = doneToday.filter((t) => t.actual_hours == null)
