@@ -22,9 +22,6 @@ import {
   todayLocal,
 } from '@/lib/recurrence'
 
-// ---------------------------------------------------------------------------
-// Typed helper — sidesteps the `never` row-type issue that occurs when
-// createClient() is instantiated without a Database generic parameter.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (table: string) => (createClient() as any).from(table)
 
@@ -66,16 +63,12 @@ export default function BoardPage() {
 
   useEffect(() => { loadData() }, [])
 
-  // ── Filtered tasks for board display ───────────────────────────────────────
-  // 1. Filter by selected project
-  // 2. Hide recurring tasks that aren't in their lead window yet
+  // Filtered tasks for board display
   const filteredTasks = useMemo(() => {
     const today = todayLocal()
-
     const projectFiltered = selectedProjectId
       ? tasks.filter((t) => t.project_id === selectedProjectId)
       : tasks
-
     return projectFiltered.filter((t) => {
       if (!t.is_recurring) return true
       return shouldShowRecurringTask(t, today)
@@ -106,7 +99,6 @@ export default function BoardPage() {
     try {
       setLogoSpin('loop')
 
-      // For recurring tasks, compute the initial next_due_date if not already set
       let nextDueDate = data.next_due_date
       if (data.is_recurring && !nextDueDate && data.recurrence_frequency) {
         const partial = {
@@ -131,7 +123,6 @@ export default function BoardPage() {
         today_flag:              data.today_flag,
         actual_hours:            null,
         completed_at:            null,
-        // Recurring
         is_recurring:            data.is_recurring,
         recurrence_frequency:    data.recurrence_frequency,
         recurrence_day_of_week:  data.recurrence_day_of_week,
@@ -139,6 +130,8 @@ export default function BoardPage() {
         recurrence_month:        data.recurrence_month,
         last_completed_cycle:    null,
         next_due_date:           nextDueDate,
+        current_streak:          0,
+        completion_note:         null,
       }
 
       const { data: inserted, error } = await db('tasks')
@@ -161,11 +154,8 @@ export default function BoardPage() {
     try {
       setLogoSpin('loop')
       setTasks((prev) => prev.map((t) => t.id === updatedTask.id ? updatedTask : t))
-
-      // Build the update payload — include all fields that can change on edit.
-      // We deliberately omit actual_hours and completed_at (those only change
-      // when completing a cycle or a one-off task).
-      const { actual_hours, completed_at, ...updateData } = updatedTask
+      // Exclude fields that are only set on completion
+      const { actual_hours, completed_at, completion_note, ...updateData } = updatedTask
       await db('tasks').update(updateData).eq('id', updatedTask.id)
       setLogoSpin(null)
     } catch (err) {
@@ -189,8 +179,6 @@ export default function BoardPage() {
   }
 
   const handleStatusChange = async (taskId: string, newStatus: Status) => {
-    // Recurring tasks should not be status-changed via drag/swipe into Done —
-    // they must go through the cycle-completion flow. But allow Todo ↔ In Progress.
     const task = tasks.find((t) => t.id === taskId)
     if (task?.is_recurring && newStatus === 'Done') return
 
@@ -212,23 +200,17 @@ export default function BoardPage() {
 
   const handleTaskComplete = (task: Task) => setCompletingTask(task)
 
-  const handleCompleteConfirm = async (hours: number | null) => {
+  const handleCompleteConfirm = async (hours: number | null, note: string | null) => {
     if (!completingTask) return
     const task = completingTask
-    setCompletingTask(null)   // close modal immediately for snappy UX
+    setCompletingTask(null)
 
     try {
       setLogoSpin('loop')
 
       if (task.is_recurring) {
-        // ── Recurring: advance the cycle ─────────────────────────────────────
+        // Recurring: advance cycle (streak logic lives in advanceRecurringCycle)
         const advanced = advanceRecurringCycle(task)
-
-        // Merge hours into the advanced state for logging purposes
-        // (we store actual_hours on the old cycle conceptually, but since
-        //  there's only one row we write it then immediately clear it — instead
-        //  we simply don't store per-cycle actual_hours beyond this update.
-        //  The completed_at/actual_hours are reset to null by advanceRecurringCycle.)
         const dbUpdate = {
           status:               advanced.status,
           actual_hours:         null,
@@ -236,22 +218,29 @@ export default function BoardPage() {
           today_flag:           false,
           last_completed_cycle: advanced.last_completed_cycle,
           next_due_date:        advanced.next_due_date,
+          current_streak:       advanced.current_streak,
+          completion_note:      null,   // reset per cycle
         }
-
         setTasks((prev) => prev.map((t) => t.id === task.id ? advanced : t))
         await db('tasks').update(dbUpdate).eq('id', task.id)
       } else {
-        // ── One-off: mark permanently Done ───────────────────────────────────
+        // One-off: mark permanently Done, save hours + Traces note
         const now = new Date().toISOString()
         const updated: Task = {
           ...task,
-          status:       'Done',
-          actual_hours: hours,
-          completed_at: now,
+          status:          'Done',
+          actual_hours:    hours,
+          completed_at:    now,
+          completion_note: note,
         }
         setTasks((prev) => prev.map((t) => t.id === task.id ? updated : t))
         await db('tasks')
-          .update({ status: 'Done', actual_hours: hours, completed_at: now })
+          .update({
+            status:          'Done',
+            actual_hours:    hours,
+            completed_at:    now,
+            completion_note: note,
+          })
           .eq('id', task.id)
       }
 
@@ -299,7 +288,7 @@ export default function BoardPage() {
       <div className="flex-1 md:ml-[var(--sidebar-w)] flex flex-col pb-14 md:pb-0 overflow-hidden">
         <div className="flex-shrink-0">
 
-          {/* ── Mobile top bar ── */}
+          {/* Mobile top bar */}
           <div
             className="md:hidden flex items-center justify-between px-4 py-3"
             style={{
@@ -325,7 +314,7 @@ export default function BoardPage() {
 
           <DailyPulse tasks={tasks} projects={projects} selectedProjectId={selectedProjectId} />
 
-          {/* ── Desktop board header ── */}
+          {/* Desktop board header */}
           {hasProjects && (
             <div
               className="hidden md:flex items-center justify-between px-5 md:px-6 py-3"
@@ -351,7 +340,7 @@ export default function BoardPage() {
           )}
         </div>
 
-        {/* ── Board area ── */}
+        {/* Board area */}
         <div className="flex-1 overflow-auto p-4 md:p-6">
           {!hasProjects ? (
             <div className="flex flex-col items-center justify-center h-full gap-4">
@@ -398,6 +387,7 @@ export default function BoardPage() {
         onClose={closeModal}
         task={editingTask}
         projects={projects}
+        allTasks={tasks}
         defaultProjectId={selectedProjectId ?? undefined}
         defaultStatus={defaultStatus}
         onSave={handleTaskSave}

@@ -1,6 +1,6 @@
 export type Priority = 'High' | 'Medium' | 'Low'
 
-// ── Work categories (unchanged) ───────────────────────────────────────────
+// ── Work categories ────────────────────────────────────────────────────────
 export type WorkCategory =
   | 'Document Generation'
   | 'Journal Writing'
@@ -32,7 +32,7 @@ export type StudyCategory =
   | 'Research'
   | 'Exam Prep'
 
-// ── Union type used across the app ───────────────────────────────────────
+// ── Union type used across the app ────────────────────────────────────────
 export type Category = WorkCategory | PersonalCategory | StudyCategory
 
 // ── Category lists per project type ──────────────────────────────────────
@@ -121,6 +121,15 @@ export interface Task {
   recurrence_month: number | null
   last_completed_cycle: string | null
   next_due_date: string | null
+
+  // ── Momentum: consecutive on-time cycle counter ───────────────────────────
+  // Non-recurring tasks always have 0. Incremented in advanceRecurringCycle
+  // when completed on or before next_due_date; reset to 0 when overdue.
+  current_streak: number
+
+  // ── Traces: optional completion note ─────────────────────────────────────
+  // Set in CompleteModal; reset to null on each recurring cycle advance.
+  completion_note: string | null
 }
 
 export interface DailyPulse {

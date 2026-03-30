@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { generateReportData } from '@/lib/insights'
+import { generateReportData, driftLabel } from '@/lib/insights'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { Logo } from '@/components/ui/Logo'
@@ -47,10 +47,10 @@ export default function ReportsPage() {
   }
 
   const statCards = [
-    { label: 'Tasks done',   value: report.tasksCompleted,  color: 'var(--teal)'   },
+    { label: 'Tasks done',   value: report.tasksCompleted,   color: 'var(--teal)'   },
     { label: 'Total hours',  value: `${report.totalHours}h`, color: 'var(--amber)'  },
-    { label: 'Projects',     value: report.projectsActive,  color: 'var(--violet)' },
-    { label: 'Categories',   value: report.categoriesUsed,  color: 'var(--rose)'   },
+    { label: 'Projects',     value: report.projectsActive,   color: 'var(--violet)' },
+    { label: 'Categories',   value: report.categoriesUsed,   color: 'var(--rose)'   },
   ]
 
   return (
@@ -140,10 +140,7 @@ export default function ReportsPage() {
                             <div key={p.projectId}>
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2.5">
-                                  <span
-                                    className="w-2 h-2 rounded-full"
-                                    style={{ backgroundColor: p.projectColor }}
-                                  />
+                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.projectColor }} />
                                   <span className="font-syne text-sm" style={{ color: 'var(--text)' }}>
                                     {p.projectName}
                                   </span>
@@ -207,6 +204,82 @@ export default function ReportsPage() {
                                     width:     `${pct}%`,
                                     background: 'linear-gradient(90deg, var(--amber), var(--teal))',
                                     boxShadow: '0 0 6px rgba(232,162,71,0.4)',
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Drift section ────────────────────────────────────────────── */}
+                  {report.driftByCategory.length > 0 && (
+                    <div
+                      className="rounded-2xl p-6"
+                      style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
+                    >
+                      <div className="flex items-center justify-between mb-5">
+                        <h2
+                          className="font-mono text-xs uppercase tracking-widest"
+                          style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
+                        >
+                          Drift
+                        </h2>
+                        <span
+                          className="font-mono text-xs"
+                          style={{ color: 'var(--text3)' }}
+                        >
+                          actual ÷ estimated
+                        </span>
+                      </div>
+
+                      <div className="space-y-4">
+                        {report.driftByCategory.map((entry) => {
+                          // Determine color: over → amber/rose, under → teal, spot on → text3
+                          const isOver   = entry.ratio > 1.1
+                          const isUnder  = entry.ratio < 0.9
+                          const barColor = isOver ? 'var(--col-high)' : isUnder ? 'var(--teal)' : 'var(--text3)'
+                          // Bar width: ratio 1.0 = 50%, max bar at 2.0+
+                          const barPct   = Math.min((entry.ratio / 2) * 100, 100)
+
+                          return (
+                            <div key={entry.category}>
+                              <div className="flex items-start justify-between mb-2 gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <p
+                                    className="font-syne text-sm leading-relaxed"
+                                    style={{ color: 'var(--text)' }}
+                                  >
+                                    {driftLabel(entry)}
+                                  </p>
+                                  <p className="font-mono text-xs mt-0.5" style={{ color: 'var(--text3)' }}>
+                                    Based on {entry.sampleCount} completed task{entry.sampleCount === 1 ? '' : 's'}
+                                  </p>
+                                </div>
+                                <span
+                                  className="font-mono text-sm font-600 flex-shrink-0"
+                                  style={{ color: barColor }}
+                                >
+                                  {entry.ratio.toFixed(2)}×
+                                </span>
+                              </div>
+                              {/* Bar — midpoint at 50% = 1.0 ratio */}
+                              <div
+                                className="relative w-full h-1.5 rounded-full overflow-hidden"
+                                style={{ background: 'var(--bg5)' }}
+                              >
+                                {/* 1.0 reference line */}
+                                <div
+                                  className="absolute top-0 h-full w-px"
+                                  style={{ left: '50%', background: 'var(--border2)' }}
+                                />
+                                <div
+                                  className="h-full rounded-full transition-all duration-700"
+                                  style={{
+                                    width:     `${barPct}%`,
+                                    background: barColor,
                                   }}
                                 />
                               </div>
@@ -281,40 +354,63 @@ export default function ReportsPage() {
                           </thead>
                           <tbody>
                             {report.completedTasks.map((task) => {
-                              const proj = projects.find((p) => p.id === task.project_id)
+                              const proj       = projects.find((p) => p.id === task.project_id)
                               const overBudget = task.actual_hours && task.estimated_hours && task.actual_hours > task.estimated_hours
                               return (
-                                <tr
-                                  key={task.id}
-                                  className="transition-colors duration-100"
-                                  style={{ borderBottom: '1px solid var(--border)' }}
-                                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
-                                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                                >
-                                  <td className="py-3 px-4 font-syne text-xs max-w-[180px] truncate" style={{ color: 'var(--text)' }}>
-                                    {task.title}
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    {proj && (
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: proj.color }} />
-                                        <span className="font-syne text-xs" style={{ color: 'var(--text2)' }}>{proj.name}</span>
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="py-3 px-4 font-mono text-xs" style={{ color: 'var(--text3)' }}>
-                                    {task.category}
-                                  </td>
-                                  <td className="py-3 px-4 font-mono text-xs" style={{ color: 'var(--text3)' }}>
-                                    {task.estimated_hours ?? '—'}
-                                  </td>
-                                  <td className="py-3 px-4 font-mono text-xs" style={{ color: overBudget ? 'var(--col-high)' : 'var(--teal)' }}>
-                                    {task.actual_hours ?? '—'}
-                                  </td>
-                                  <td className="py-3 px-4 font-mono text-xs" style={{ color: 'var(--text3)' }}>
-                                    {new Date(task.completed_at || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                  </td>
-                                </tr>
+                                <>
+                                  <tr
+                                    key={task.id}
+                                    className="transition-colors duration-100"
+                                    style={{ borderBottom: task.completion_note ? 'none' : '1px solid var(--border)' }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                                  >
+                                    <td className="py-3 px-4 font-syne text-xs max-w-[180px] truncate" style={{ color: 'var(--text)' }}>
+                                      {task.title}
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      {proj && (
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: proj.color }} />
+                                          <span className="font-syne text-xs" style={{ color: 'var(--text2)' }}>{proj.name}</span>
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-4 font-mono text-xs" style={{ color: 'var(--text3)' }}>
+                                      {task.category}
+                                    </td>
+                                    <td className="py-3 px-4 font-mono text-xs" style={{ color: 'var(--text3)' }}>
+                                      {task.estimated_hours ?? '—'}
+                                    </td>
+                                    <td className="py-3 px-4 font-mono text-xs" style={{ color: overBudget ? 'var(--col-high)' : 'var(--teal)' }}>
+                                      {task.actual_hours ?? '—'}
+                                    </td>
+                                    <td className="py-3 px-4 font-mono text-xs" style={{ color: 'var(--text3)' }}>
+                                      {new Date(task.completed_at || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    </td>
+                                  </tr>
+                                  {/* Traces note row — only shown when a note exists */}
+                                  {task.completion_note && (
+                                    <tr
+                                      key={`${task.id}-note`}
+                                      style={{ borderBottom: '1px solid var(--border)' }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
+                                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                                    >
+                                      <td
+                                        colSpan={6}
+                                        className="px-4 pb-3"
+                                      >
+                                        <p
+                                          className="font-syne text-xs italic leading-relaxed"
+                                          style={{ color: 'var(--text3)', paddingLeft: '2px' }}
+                                        >
+                                          "{task.completion_note}"
+                                        </p>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </>
                               )
                             })}
                           </tbody>

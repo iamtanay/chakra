@@ -113,7 +113,6 @@ export function computeNextDueDate(task: Task, after: Date): Date {
 /** Clamp a date's day to the last valid day of its own month.
  *  e.g. Feb 31 → Feb 28/29, Apr 31 → Apr 30 */
 function clampToMonthEnd(date: Date): Date {
-  // Setting day=0 of the NEXT month gives last day of current month
   const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
   if (date.getDate() > lastDay) {
     return new Date(date.getFullYear(), date.getMonth(), lastDay)
@@ -219,10 +218,22 @@ export function shouldShowRecurringTask(task: Task, today: Date = todayLocal()):
  *   - actual_hours          = null  (reset for new cycle)
  *   - completed_at          = null  (reset for new cycle)
  *   - today_flag            = false (reset for new cycle)
+ *   - completion_note       = null  (reset for new cycle — Traces are per-cycle)
+ *   - current_streak        = incremented if completed on time, reset to 0 if overdue
  */
 export function advanceRecurringCycle(task: Task): Task {
   const today    = todayLocal()
   const nextDate = computeNextDueDate(task, today)
+
+  // ── Momentum: determine if this cycle was completed on time ──────────────
+  // "On time" means today <= next_due_date (i.e. not overdue).
+  // If next_due_date is null (should never happen for a valid recurring task),
+  // we treat it as on-time to avoid accidentally resetting a streak.
+  const isOnTime = task.next_due_date
+    ? today <= parseLocalDate(task.next_due_date)
+    : true
+
+  const newStreak = isOnTime ? (task.current_streak ?? 0) + 1 : 0
 
   return {
     ...task,
@@ -232,6 +243,8 @@ export function advanceRecurringCycle(task: Task): Task {
     actual_hours:         null,
     completed_at:         null,
     today_flag:           false,
+    completion_note:      null,   // Traces reset per cycle
+    current_streak:       newStreak,
   }
 }
 
@@ -281,4 +294,17 @@ export function recurringDueStatus(task: Task, today: Date = todayLocal()): 'ove
   if (diff === 0) return 'due-soon'
   if (diff <= 2)  return 'due-soon'
   return 'normal'
+}
+
+// ── Momentum: streak display helpers ─────────────────────────────────────────
+
+/** Threshold above which a streak gets "warm" visual treatment on the board. */
+export const STREAK_WARM_THRESHOLD = 3
+
+/**
+ * Returns true if the streak count is high enough to merit a visual highlight.
+ * Used by TaskCard and TodayView to add amber glow/border treatment.
+ */
+export function isWarmStreak(streak: number): boolean {
+  return streak >= STREAK_WARM_THRESHOLD
 }

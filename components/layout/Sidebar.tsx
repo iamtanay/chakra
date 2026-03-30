@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Logo } from '@/components/ui/Logo'
-import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Sun, Moon } from 'lucide-react'
+import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Star, Sun, Moon } from 'lucide-react'
 import type { Project } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
 
@@ -16,8 +16,9 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { href: '/',         label: 'Board',    Icon: LayoutDashboard },
-  { href: '/projects', label: 'Projects', Icon: FolderKanban },
-  { href: '/reports',  label: 'Reports',  Icon: BarChart3 },
+  { href: '/today',    label: 'Today',    Icon: Star            },
+  { href: '/projects', label: 'Projects', Icon: FolderKanban   },
+  { href: '/reports',  label: 'Reports',  Icon: BarChart3      },
 ]
 
 export function Sidebar({ projects, selectedProjectId, onProjectSelect }: SidebarProps) {
@@ -48,7 +49,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         overflow: 'hidden',
       }}
     >
-      {/* ── Logo ── */}
+      {/* Logo */}
       <div
         className="flex items-center gap-3 px-5 py-5"
         style={{ borderBottom: '1px solid var(--border)' }}
@@ -67,7 +68,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         </span>
       </div>
 
-      {/* ── Nav ── */}
+      {/* Nav */}
       <nav className="px-3 pt-4 space-y-1">
         {NAV_ITEMS.map(({ href, label, Icon }) => {
           const active = pathname === href
@@ -90,7 +91,12 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
               )}
               <Icon
                 size={16}
-                style={{ color: active ? 'var(--amber)' : 'var(--text3)', flexShrink: 0 }}
+                style={{
+                  color: active ? 'var(--amber)' : 'var(--text3)',
+                  flexShrink: 0,
+                  // Fill the star when active for the Today tab
+                  fill: (href === '/today' && active) ? 'var(--amber)' : 'none',
+                }}
                 className="transition-colors duration-150 group-hover:text-[var(--text2)]"
               />
               <span
@@ -104,7 +110,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         })}
       </nav>
 
-      {/* ── Projects ── */}
+      {/* Projects */}
       {projects.length > 0 && (
         <div
           className="mt-5 mx-3 pt-4 flex-1 overflow-y-auto"
@@ -160,9 +166,8 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         </div>
       )}
 
-      {/* ── Bottom section ── */}
+      {/* Bottom section */}
       <div className="px-3 pt-3 pb-5 mt-auto flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-
         {/* Theme toggle */}
         <button
           onClick={toggle}

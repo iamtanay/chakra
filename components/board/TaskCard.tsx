@@ -2,8 +2,14 @@
 
 import { useState } from 'react'
 import type { Task, Project } from '@/types'
-import { Check, Star, RefreshCw } from 'lucide-react'
-import { recurrenceLabel, recurringDueStatus, parseLocalDate, todayLocal } from '@/lib/recurrence'
+import { Check, Star, RefreshCw, Flame } from 'lucide-react'
+import {
+  recurrenceLabel,
+  recurringDueStatus,
+  parseLocalDate,
+  todayLocal,
+  isWarmStreak,
+} from '@/lib/recurrence'
 
 interface TaskCardProps {
   task: Task
@@ -72,17 +78,18 @@ export function TaskCard({
   const today = todayLocal()
 
   // ── Date logic ─────────────────────────────────────────────────────────────
-  // For display we always use next_due_date (set for both recurring and non-recurring).
-  // next_due_date is null for Done one-off tasks — handled gracefully.
-  const displayDate = task.next_due_date || task.due_date   // fallback for pre-migration rows
+  const displayDate = task.next_due_date || task.due_date
 
   const isOverdue =
     displayDate &&
     parseLocalDate(displayDate) < today &&
     task.status !== 'Done'
 
-  // For recurring tasks, get a richer due status
   const dueStatus = task.is_recurring ? recurringDueStatus(task, today) : null
+
+  // ── Momentum ───────────────────────────────────────────────────────────────
+  const streak     = task.current_streak ?? 0
+  const warmStreak = task.is_recurring && isWarmStreak(streak)
 
   // ── Visual vars ────────────────────────────────────────────────────────────
   const abbr   = categoryAbbr[task.category] ?? task.category?.slice(0, 3).toUpperCase() ?? '—'
@@ -91,12 +98,19 @@ export function TaskCard({
 
   const dateColor = (() => {
     if (task.is_recurring) {
-      if (dueStatus === 'overdue') return 'var(--col-high)'
+      if (dueStatus === 'overdue')  return 'var(--col-high)'
       if (dueStatus === 'due-soon') return 'var(--amber)'
       return 'var(--text3)'
     }
     return isOverdue ? 'var(--col-high)' : 'var(--text3)'
   })()
+
+  // Warm streak cards get a subtle amber border glow
+  const cardBorder = warmStreak
+    ? 'rgba(232,162,71,0.35)'
+    : task.is_recurring
+      ? 'rgba(232,162,71,0.18)'
+      : 'var(--border)'
 
   return (
     <div
@@ -106,8 +120,9 @@ export function TaskCard({
       className={`relative rounded-xl cursor-pointer card-lift ${isDragging ? 'opacity-30 scale-95' : ''}`}
       style={{
         background: 'var(--bg3)',
-        border:     `1px solid ${task.is_recurring ? 'rgba(232,162,71,0.18)' : 'var(--border)'}`,
+        border:     `1px solid ${cardBorder}`,
         overflow:   'hidden',
+        boxShadow:  warmStreak ? '0 0 16px rgba(232,162,71,0.10)' : undefined,
       }}
     >
       {/* Priority accent bar */}
@@ -147,6 +162,23 @@ export function TaskCard({
               >
                 <RefreshCw size={9} strokeWidth={2.5} />
                 {task.recurrence_frequency}
+              </span>
+            )}
+
+            {/* Momentum streak badge — only shown for recurring tasks with streak > 0 */}
+            {task.is_recurring && streak > 0 && (
+              <span
+                className="flex items-center gap-1 font-mono text-xs px-2 py-0.5 rounded-full"
+                style={{
+                  color:      warmStreak ? '#080909'               : 'var(--text3)',
+                  background: warmStreak ? 'var(--amber)'          : 'var(--bg5)',
+                  border:     warmStreak ? 'none'                   : '1px solid var(--border)',
+                  letterSpacing: '0.03em',
+                }}
+                title={`${streak} cycle${streak === 1 ? '' : 's'} in a row`}
+              >
+                {warmStreak && <Flame size={9} strokeWidth={2} />}
+                {streak}
               </span>
             )}
 

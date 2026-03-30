@@ -2,16 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, FolderKanban, BarChart3, Settings, Sun, Moon, LogOut, X } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, BarChart3, Star, Settings, Sun, Moon, LogOut, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import { NotificationToggle } from '@/components/ui/NotificationToggle'
 
 const NAV_ITEMS = [
-  { href: '/',         label: 'Board',    Icon: LayoutDashboard },
-  { href: '/projects', label: 'Projects', Icon: FolderKanban },
-  { href: '/reports',  label: 'Reports',  Icon: BarChart3 },
+  { href: '/',         label: 'Board',   Icon: LayoutDashboard },
+  { href: '/today',    label: 'Today',   Icon: Star            },
+  { href: '/projects', label: 'Projects', Icon: FolderKanban   },
+  { href: '/reports',  label: 'Reports', Icon: BarChart3       },
 ]
 
 export function BottomNav() {
@@ -20,10 +21,9 @@ export function BottomNav() {
   const supabase = createClient()
   const { theme, toggle } = useTheme()
 
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsOpen,  setSettingsOpen]  = useState(false)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
 
-  // Close on escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSettingsOpen(false) }
     if (settingsOpen) document.addEventListener('keydown', handler)
@@ -67,10 +67,17 @@ export function BottomNav() {
                     style={{ background: 'var(--amber)' }}
                   />
                 )}
-                <Icon size={20} style={{ color: active ? 'var(--amber)' : 'var(--text3)' }} />
+                <Icon
+                  size={20}
+                  style={{
+                    color: active ? 'var(--amber)' : 'var(--text3)',
+                    // Today tab: fill the star icon when active for extra visibility
+                    fill:  (href === '/today' && active) ? 'var(--amber)' : 'none',
+                  }}
+                />
                 <span
                   className="font-syne text-xs font-500 tracking-wide"
-                  style={{ color: active ? 'var(--text)' : 'var(--text3)' }}
+                  style={{ color: active ? 'var(--text)' : 'var(--text3)', fontSize: '10px' }}
                 >
                   {label}
                 </span>
@@ -89,7 +96,7 @@ export function BottomNav() {
               style={{ color: settingsOpen ? 'var(--amber)' : 'var(--text3)' }}
             />
             <span
-              className="font-syne text-xs font-500"
+              className="font-syne font-500"
               style={{ color: settingsOpen ? 'var(--amber)' : 'var(--text3)', fontSize: '10px' }}
             >
               More
@@ -98,7 +105,7 @@ export function BottomNav() {
         </div>
       </nav>
 
-      {/* ── Settings Sheet ── */}
+      {/* Settings Sheet */}
       {settingsOpen && (
         <div
           className="fixed inset-0 z-[60] md:hidden animate-fadeIn"
@@ -114,12 +121,10 @@ export function BottomNav() {
               paddingBottom: 'env(safe-area-inset-bottom)',
             }}
           >
-            {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 rounded-full" style={{ background: 'var(--bg5)' }} />
             </div>
 
-            {/* Header */}
             <div
               className="flex items-center justify-between px-5 py-3"
               style={{ borderBottom: '1px solid var(--border)' }}
@@ -136,10 +141,8 @@ export function BottomNav() {
               </button>
             </div>
 
-            {/* Body */}
             <div className="p-5 space-y-3">
-
-              {/* Theme toggle row */}
+              {/* Theme toggle */}
               <div
                 className="flex items-center justify-between px-4 py-3.5 rounded-xl"
                 style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}
@@ -153,8 +156,6 @@ export function BottomNav() {
                     {theme === 'dark' ? 'Dark mode' : 'Light mode'}
                   </span>
                 </div>
-
-                {/* Toggle pill */}
                 <div
                   className="relative w-12 h-6 rounded-full cursor-pointer transition-colors duration-300 flex-shrink-0"
                   style={{ background: theme === 'light' ? 'var(--amber)' : 'var(--bg5)' }}
@@ -174,7 +175,7 @@ export function BottomNav() {
               {/* Notification toggle */}
               <NotificationToggle />
 
-              {/* Logout row */}
+              {/* Logout */}
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-150"
@@ -194,7 +195,6 @@ export function BottomNav() {
                   {logoutConfirm ? 'Tap again to confirm' : 'Log out'}
                 </span>
               </button>
-
             </div>
           </div>
         </div>
