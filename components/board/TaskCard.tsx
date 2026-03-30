@@ -8,6 +8,7 @@ import {
   recurringDueStatus,
   parseLocalDate,
   todayLocal,
+  toISODate,
   isWarmStreak,
 } from '@/lib/recurrence'
 
@@ -86,6 +87,12 @@ export function TaskCard({
     task.status !== 'Done'
 
   const dueStatus = task.is_recurring ? recurringDueStatus(task, today) : null
+
+  // ── Today logic ────────────────────────────────────────────────────────────
+  // A task is "in today" if manually starred OR its deadline falls on today
+  const todayStr    = toISODate(new Date())
+  const isDueToday  = (task.next_due_date ?? task.due_date) === todayStr
+  const isInToday   = task.today_flag || isDueToday
 
   // ── Momentum ───────────────────────────────────────────────────────────────
   const streak     = task.current_streak ?? 0
@@ -196,26 +203,39 @@ export function TaskCard({
             )}
           </div>
 
-          {/* Today flag */}
-          {task.today_flag && (
+          {/* Today star icon
+              - Filled amber:   manually starred (today_flag=true)
+              - Outlined amber: auto-included because deadline is today (not clickable to remove)
+              - Ghost on hover: not in today yet, click to manually star
+          */}
+          {isInToday ? (
             <button
-              onClick={(e) => { e.stopPropagation(); onTodayToggle(task) }}
+              onClick={(e) => {
+                e.stopPropagation()
+                // Only toggle if manually starred; deadline-auto tasks can't be un-starred here
+                if (task.today_flag) onTodayToggle(task)
+              }}
               className="flex-shrink-0"
+              title={task.today_flag ? 'Remove from today' : 'Due today'}
+              style={{ cursor: task.today_flag ? 'pointer' : 'default' }}
             >
               <Star
                 size={13}
-                fill="var(--amber)"
+                fill={task.today_flag ? 'var(--amber)' : 'none'}
+                strokeWidth={task.today_flag ? 0 : 2}
                 style={{ color: 'var(--amber)' }}
               />
             </button>
-          )}
-          {!task.today_flag && hovered && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onTodayToggle(task) }}
-              className="flex-shrink-0 opacity-30 hover:opacity-70 transition-opacity"
-            >
-              <Star size={13} style={{ color: 'var(--text3)' }} />
-            </button>
+          ) : (
+            hovered && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onTodayToggle(task) }}
+                className="flex-shrink-0 opacity-30 hover:opacity-70 transition-opacity"
+                title="Add to today"
+              >
+                <Star size={13} style={{ color: 'var(--text3)' }} />
+              </button>
+            )
           )}
         </div>
 

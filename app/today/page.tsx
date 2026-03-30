@@ -86,10 +86,19 @@ export default function TodayPage() {
 
   useEffect(() => { loadData() }, [])
 
-  // Today View: only today_flag tasks, not Done, sorted by priority then due date
+  // Today's date string (YYYY-MM-DD) for deadline comparison
+  const todayStr = toISODate(new Date())
+
+  // Helper: a task belongs in today if manually flagged OR deadline is today
+  const isInToday = (t: Task) => {
+    const effectiveDate = t.next_due_date ?? t.due_date
+    return t.today_flag || effectiveDate === todayStr
+  }
+
+  // Today View: today_flag tasks + deadline-today tasks, not Done, sorted by priority then due date
   const todayTasks = useMemo(() => {
     return tasks
-      .filter((t) => t.today_flag && t.status !== 'Done')
+      .filter((t) => t.status !== 'Done' && isInToday(t))
       .sort((a, b) => {
         const pa = PRIORITY_ORDER[a.priority] ?? 1
         const pb = PRIORITY_ORDER[b.priority] ?? 1
@@ -101,12 +110,12 @@ export default function TodayPage() {
         if (bDate) return 1
         return 0
       })
-  }, [tasks])
+  }, [tasks, todayStr])
 
-  // Done tasks flagged today (for context, shown below as a separate section)
+  // Done tasks that were flagged or had deadline today
   const doneTodayTasks = useMemo(() => {
-    return tasks.filter((t) => t.today_flag && t.status === 'Done')
-  }, [tasks])
+    return tasks.filter((t) => t.status === 'Done' && isInToday(t))
+  }, [tasks, todayStr])
 
   const projectsMap = useMemo(
     () => new Map(projects.map((p) => [p.id, p])),
@@ -268,10 +277,10 @@ export default function TodayPage() {
             // Empty state
             <div className="flex flex-col items-center justify-center h-full gap-3">
               <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
-                Nothing marked for today.
+                Nothing due or marked for today.
               </p>
               <p className="font-mono text-xs" style={{ color: 'var(--text3)', opacity: 0.6 }}>
-                Star a task on the board to add it here.
+                Star a task on the board or set a deadline to add it here.
               </p>
             </div>
           ) : (
@@ -288,6 +297,8 @@ export default function TodayPage() {
                       onEdit={() => { setEditingTask(task); setModalOpen(true) }}
                       onComplete={() => handleComplete(task)}
                       onUnstar={() => handleTodayToggle(task)}
+                      // auto-added means it's here only because of deadline, not manually starred
+                      isAutoAdded={!task.today_flag}
                     />
                   ))}
                 </div>
@@ -358,9 +369,10 @@ interface TodayTaskRowProps {
   onEdit: () => void
   onComplete: () => void
   onUnstar: () => void
+  isAutoAdded: boolean
 }
 
-function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar }: TodayTaskRowProps) {
+function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar, isAutoAdded }: TodayTaskRowProps) {
   const pColor    = priorityColors[task.priority] ?? 'var(--text3)'
   const abbr      = categoryAbbr[task.category] ?? task.category?.slice(0, 3).toUpperCase() ?? '—'
   const streak    = task.current_streak ?? 0
@@ -427,6 +439,20 @@ function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar }: TodayTask
               {streak}
             </span>
           )}
+
+          {/* Deadline badge — shown when auto-added by deadline (not manually starred) */}
+          {isAutoAdded && (
+            <span
+              className="font-mono text-xs px-1.5 py-0.5 rounded-full"
+              style={{
+                color:      'var(--col-high)',
+                background: 'rgba(248,113,113,0.12)',
+                letterSpacing: '0.04em',
+              }}
+            >
+              due today
+            </span>
+          )}
         </div>
 
         <p
@@ -437,15 +463,17 @@ function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar }: TodayTask
         </p>
       </div>
 
-      {/* Unstar button */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onUnstar() }}
-        className="flex-shrink-0 p-1.5 rounded-lg transition-all duration-150"
-        style={{ color: 'var(--amber)' }}
-        title="Remove from today"
-      >
-        <Star size={14} fill="var(--amber)" />
-      </button>
+      {/* Unstar button — only shown for manually starred tasks, not deadline-auto tasks */}
+      {!isAutoAdded && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onUnstar() }}
+          className="flex-shrink-0 p-1.5 rounded-lg transition-all duration-150"
+          style={{ color: 'var(--amber)' }}
+          title="Remove from today"
+        >
+          <Star size={14} fill="var(--amber)" />
+        </button>
+      )}
 
       {/* Complete button */}
       <button

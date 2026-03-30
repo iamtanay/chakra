@@ -2,41 +2,124 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { generateReportData, driftLabel } from '@/lib/insights'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { ProjectCard } from '@/components/projects/ProjectCard'
+import { ProjectModal } from '@/components/projects/ProjectModal'
+import { TaskModal } from '@/components/modals/TaskModal'
 import { Logo } from '@/components/ui/Logo'
-import { PillToggle } from '@/components/ui/PillToggle'
-import type { Task, Project } from '@/types'
+import { Plus } from 'lucide-react'
+import type { Project, Task } from '@/types'
+import type { NewTaskData } from '@/components/modals/TaskModal'
 
-export default function ReportsPage() {
-  const supabase = createClient()
-  const [projects,  setProjects]  = useState<Project[]>([])
-  const [tasks,     setTasks]     = useState<Task[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [timeRange, setTimeRange] = useState<'month' | 'quarter' | 'year'>('month')
-  const [logoSpin,  setLogoSpin]  = useState<'once' | 'fast' | 'loop' | null>('once')
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = (table: string) => (createClient() as any).from(table)
+
+export default function ProjectsPage() {
+  const [projects,       setProjects]       = useState<Project[]>([])
+  const [tasks,          setTasks]          = useState<Task[]>([])
+  const [loading,        setLoading]        = useState(true)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [showModal,      setShowModal]      = useState(false)
+  const [logoSpin,       setLogoSpin]       = useState<'once' | 'fast' | 'loop' | null>('once')
+
+  const [editingTask,   setEditingTask]   = useState<Task | null>(null)
+  const [taskModalOpen, setTaskModalOpen] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setLogoSpin(null), 600)
     return () => clearTimeout(t)
   }, [])
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      const [{ data: pd }, { data: td }] = await Promise.all([
-        supabase.from('projects').select('*'),
-        supabase.from('tasks').select('*'),
-      ])
-      setProjects((pd || []) as Project[])
-      setTasks((td || []) as Task[])
-      setLoading(false)
-    }
-    load()
-  }, [])
+  const loadData = async () => {
+    setLoading(true)
+    const [{ data: pd }, { data: td }] = await Promise.all([
+      db('projects').select('*'),
+      db('tasks').select('*'),
+    ])
+    setProjects((pd || []) as Project[])
+    setTasks((td || []) as Task[])
+    setLoading(false)
+  }
 
-  const report = useMemo(() => generateReportData(tasks, projects, timeRange), [tasks, projects, timeRange])
+  useEffect(() => { loadData() }, [])
+
+  const groupedProjects = useMemo(() => ({
+    Work:     projects.filter((p) => p.type === 'Work'),
+    Study:    projects.filter((p) => p.type === 'Study'),
+    Personal: projects.filter((p) => p.type === 'Personal'),
+  }), [projects])
+
+  const getStats = (pid: string) => {
+    const pt = tasks.filter((t) => t.project_id === pid)
+    return { total: pt.length, completed: pt.filter((t) => t.status === 'Done').length }
+  }
+
+  // ── Project CRUD ──────────────────────────────────────────────────────────
+
+  const handleSave = async (project: Project) => {
+    try {
+      setLogoSpin('loop')
+      if (editingProject) {
+        setProjects(projects.map((p) => p.id === project.id ? project : p))
+        await db('projects')
+          .update({ name: project.name, type: project.type, color: project.color })
+          .eq('id', project.id)
+      } else {
+        const { data } = await db('projects')
+          .insert([{ name: project.name, type: project.type, color: project.color }])
+          .select()
+        setProjects([...projects, (data?.[0] as Project) || project])
+      }
+    } catch { loadData() }
+    finally { setLogoSpin(null); setEditingProject(null); setShowModal(false) }
+  }
+
+  const handleDelete = async (pid: string) => {
+    try {
+      setLogoSpin('loop')
+      setProjects(projects.filter((p) => p.id !== pid))
+      await db('projects').delete().eq('id', pid)
+    } catch { loadData() }
+    finally { setLogoSpin(null); setEditingProject(null); setShowModal(false) }
+  }
+
+  // ── Recurring task handlers ────────────────────────────────────────────────
+
+  const handleEditRecurringTask = (task: Task) => {
+    setShowModal(false)
+    setEditingTask(task)
+    setTaskModalOpen(true)
+  }
+
+  const handleTaskSave = async (updatedTask: Task) => {
+    try {
+      setLogoSpin('loop')
+      setTasks((prev) => prev.map((t) => t.id === updatedTask.id ? updatedTask : t))
+      const { actual_hours, completed_at, completion_note, ...updateData } = updatedTask
+      await db('tasks').update(updateData).eq('id', updatedTask.id)
+    } catch { loadData() }
+    finally { setLogoSpin(null) }
+  }
+
+  const handleTaskDelete = async (taskId: string) => {
+    try {
+      setLogoSpin('loop')
+      setTasks((prev) => prev.filter((t) => t.id !== taskId))
+      await db('tasks').delete().eq('id', taskId)
+    } catch { loadData() }
+    finally { setLogoSpin(null) }
+  }
+
+  const handleTaskCreate = async (_data: NewTaskData) => { /* no-op from projects page */ }
+
+  const closeTaskModal = () => {
+    setTaskModalOpen(false)
+    setEditingTask(null)
+    if (editingProject) setShowModal(true)
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -46,386 +129,113 @@ export default function ReportsPage() {
     )
   }
 
-  const statCards = [
-    { label: 'Tasks done',   value: report.tasksCompleted,   color: 'var(--teal)'   },
-    { label: 'Total hours',  value: `${report.totalHours}h`, color: 'var(--amber)'  },
-    { label: 'Projects',     value: report.projectsActive,   color: 'var(--violet)' },
-    { label: 'Categories',   value: report.categoriesUsed,   color: 'var(--rose)'   },
-  ]
-
   return (
     <div className="flex h-screen" style={{ background: 'var(--bg)' }}>
       <Sidebar projects={projects} selectedProjectId={null} onProjectSelect={() => {}} />
 
-      <div
-        className="flex-1 flex flex-col overflow-hidden pb-14 md:pb-0"
-        style={{ marginLeft: '0', paddingLeft: '0' }}
-      >
-        <div className="md:ml-[var(--sidebar-w)] flex flex-col flex-1 overflow-hidden">
-          {/* Top bar */}
-          <div
-            className="flex items-center justify-between px-5 md:px-8 py-4 flex-shrink-0"
-            style={{ borderBottom: '1px solid var(--border)' }}
-          >
-            <div className="flex items-center gap-3">
-              <Logo size={22} spin={logoSpin} />
-              <h1
-                className="font-syne font-800 text-lg uppercase tracking-widest"
-                style={{ color: 'var(--text)', letterSpacing: '0.15em' }}
-              >
-                Reports
-              </h1>
-            </div>
-            <PillToggle
-              options={['month', 'quarter', 'year'] as const}
-              value={timeRange}
-              onChange={setTimeRange}
-            />
+      <div className="flex-1 md:ml-[var(--sidebar-w)] flex flex-col pb-14 md:pb-0 overflow-hidden">
+        <div
+          className="flex items-center justify-between px-5 md:px-8 py-4 flex-shrink-0"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <div className="flex items-center gap-3">
+            <Logo size={22} spin={logoSpin} />
+            <h1
+              className="font-syne font-800 text-lg uppercase tracking-widest"
+              style={{ color: 'var(--text)', letterSpacing: '0.15em' }}
+            >
+              Projects
+            </h1>
           </div>
+          <button
+            onClick={() => { setEditingProject(null); setShowModal(true) }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-syne font-600 text-sm transition-all duration-150"
+            style={{ background: 'var(--amber)', color: '#0a0a0a' }}
+          >
+            <Plus size={16} />
+            New
+          </button>
+        </div>
 
-          {/* Body */}
-          <div className="flex-1 overflow-auto p-5 md:p-8">
-            <div className="max-w-4xl mx-auto space-y-6">
-              {report.tasksCompleted === 0 ? (
-                <div
-                  className="flex flex-col items-center justify-center py-20 rounded-2xl"
-                  style={{ border: '1.5px dashed var(--border2)' }}
-                >
-                  <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
-                    Nothing logged yet.
-                  </p>
-                  <p className="font-mono text-xs mt-1" style={{ color: 'var(--text3)', opacity: 0.6 }}>
-                    Complete tasks to see telemetry.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {/* Stat cards */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {statCards.map((s) => (
-                      <div
-                        key={s.label}
-                        className="rounded-xl p-5 card-lift"
-                        style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
-                      >
-                        <p className="font-mono text-xs mb-2" style={{ color: 'var(--text3)' }}>
-                          {s.label}
-                        </p>
-                        <p
-                          className="font-syne font-800 text-3xl"
-                          style={{ color: s.color, lineHeight: 1 }}
-                        >
-                          {s.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* By Project */}
-                  {report.byProject.length > 0 && (
-                    <div
-                      className="rounded-2xl p-6"
-                      style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
-                    >
-                      <h2
-                        className="font-mono text-xs uppercase tracking-widest mb-5"
-                        style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
-                      >
-                        By Project
-                      </h2>
-                      <div className="space-y-4">
-                        {report.byProject.map((p) => {
-                          const pct = report.totalHours > 0 ? (p.hours / report.totalHours) * 100 : 0
-                          return (
-                            <div key={p.projectId}>
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2.5">
-                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.projectColor }} />
-                                  <span className="font-syne text-sm" style={{ color: 'var(--text)' }}>
-                                    {p.projectName}
-                                  </span>
-                                  <span
-                                    className="font-mono text-xs px-2 py-0.5 rounded"
-                                    style={{ background: 'var(--bg4)', color: 'var(--text3)' }}
-                                  >
-                                    {p.projectType}
-                                  </span>
-                                </div>
-                                <span className="font-mono text-xs" style={{ color: 'var(--text2)' }}>
-                                  {p.count} tasks · {p.hours}h
-                                </span>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg5)' }}>
-                                <div
-                                  className="h-full rounded-full transition-all duration-700"
-                                  style={{
-                                    width:     `${pct}%`,
-                                    background: p.projectColor,
-                                    boxShadow: `0 0 6px ${p.projectColor}50`,
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* By Category */}
-                  {report.byCategory.length > 0 && (
-                    <div
-                      className="rounded-2xl p-6"
-                      style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
-                    >
-                      <h2
-                        className="font-mono text-xs uppercase tracking-widest mb-5"
-                        style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
-                      >
-                        By Category
-                      </h2>
-                      <div className="space-y-4">
-                        {report.byCategory.map((cat) => {
-                          const pct = report.totalHours > 0 ? (cat.hours / report.totalHours) * 100 : 0
-                          return (
-                            <div key={cat.category}>
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="font-syne text-sm" style={{ color: 'var(--text)' }}>
-                                  {cat.category}
-                                </span>
-                                <span className="font-mono text-xs" style={{ color: 'var(--text2)' }}>
-                                  {cat.count} · {cat.hours}h
-                                </span>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg5)' }}>
-                                <div
-                                  className="h-full rounded-full transition-all duration-700"
-                                  style={{
-                                    width:     `${pct}%`,
-                                    background: 'linear-gradient(90deg, var(--amber), var(--teal))',
-                                    boxShadow: '0 0 6px rgba(232,162,71,0.4)',
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Drift section ────────────────────────────────────────────── */}
-                  {report.driftByCategory.length > 0 && (
-                    <div
-                      className="rounded-2xl p-6"
-                      style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
-                    >
-                      <div className="flex items-center justify-between mb-5">
-                        <h2
+        <div className="flex-1 overflow-auto p-5 md:p-8">
+          <div className="max-w-4xl mx-auto">
+            {projects.length === 0 ? (
+              <div
+                className="flex flex-col items-center justify-center py-20 rounded-2xl"
+                style={{ border: '1.5px dashed var(--border2)' }}
+              >
+                <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
+                  No projects yet.
+                </p>
+                <p className="font-mono text-xs mt-1" style={{ color: 'var(--text3)', opacity: 0.6 }}>
+                  Create one to begin.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {Object.entries(groupedProjects).map(([type, list]) => {
+                  if (list.length === 0) return null
+                  return (
+                    <div key={type}>
+                      <div className="flex items-center gap-3 mb-4">
+                        <span
                           className="font-mono text-xs uppercase tracking-widest"
                           style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
                         >
-                          Drift
-                        </h2>
-                        <span
-                          className="font-mono text-xs"
-                          style={{ color: 'var(--text3)' }}
-                        >
-                          actual ÷ estimated
+                          {type}
+                        </span>
+                        <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                        <span className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
+                          {list.length}
                         </span>
                       </div>
-
-                      <div className="space-y-4">
-                        {report.driftByCategory.map((entry) => {
-                          // Determine color: over → amber/rose, under → teal, spot on → text3
-                          const isOver   = entry.ratio > 1.1
-                          const isUnder  = entry.ratio < 0.9
-                          const barColor = isOver ? 'var(--col-high)' : isUnder ? 'var(--teal)' : 'var(--text3)'
-                          // Bar width: ratio 1.0 = 50%, max bar at 2.0+
-                          const barPct   = Math.min((entry.ratio / 2) * 100, 100)
-
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {list.map((p) => {
+                          const s = getStats(p.id)
                           return (
-                            <div key={entry.category}>
-                              <div className="flex items-start justify-between mb-2 gap-4">
-                                <div className="flex-1 min-w-0">
-                                  <p
-                                    className="font-syne text-sm leading-relaxed"
-                                    style={{ color: 'var(--text)' }}
-                                  >
-                                    {driftLabel(entry)}
-                                  </p>
-                                  <p className="font-mono text-xs mt-0.5" style={{ color: 'var(--text3)' }}>
-                                    Based on {entry.sampleCount} completed task{entry.sampleCount === 1 ? '' : 's'}
-                                  </p>
-                                </div>
-                                <span
-                                  className="font-mono text-sm font-600 flex-shrink-0"
-                                  style={{ color: barColor }}
-                                >
-                                  {entry.ratio.toFixed(2)}×
-                                </span>
-                              </div>
-                              {/* Bar — midpoint at 50% = 1.0 ratio */}
-                              <div
-                                className="relative w-full h-1.5 rounded-full overflow-hidden"
-                                style={{ background: 'var(--bg5)' }}
-                              >
-                                {/* 1.0 reference line */}
-                                <div
-                                  className="absolute top-0 h-full w-px"
-                                  style={{ left: '50%', background: 'var(--border2)' }}
-                                />
-                                <div
-                                  className="h-full rounded-full transition-all duration-700"
-                                  style={{
-                                    width:     `${barPct}%`,
-                                    background: barColor,
-                                  }}
-                                />
-                              </div>
-                            </div>
+                            <ProjectCard
+                              key={p.id}
+                              project={p}
+                              taskCount={s.total}
+                              completedCount={s.completed}
+                              onEdit={(proj) => { setEditingProject(proj); setShowModal(true) }}
+                            />
                           )
                         })}
                       </div>
                     </div>
-                  )}
-
-                  {/* Insights */}
-                  {report.insights.length > 0 && (
-                    <div
-                      className="rounded-2xl p-6"
-                      style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
-                    >
-                      <h2
-                        className="font-mono text-xs uppercase tracking-widest mb-4"
-                        style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
-                      >
-                        Insights
-                      </h2>
-                      <div className="space-y-3">
-                        {report.insights.map((insight, i) => (
-                          <div key={i} className="flex gap-3">
-                            <span
-                              className="font-mono text-xs w-6 flex-shrink-0 pt-0.5"
-                              style={{ color: 'var(--amber)' }}
-                            >
-                              {String(i + 1).padStart(2, '0')}
-                            </span>
-                            <p className="font-syne text-sm leading-relaxed" style={{ color: 'var(--text2)' }}>
-                              {insight}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Completed tasks table */}
-                  {report.completedTasks.length > 0 && (
-                    <div
-                      className="rounded-2xl overflow-hidden"
-                      style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
-                    >
-                      <div
-                        className="px-6 py-4"
-                        style={{ borderBottom: '1px solid var(--border)' }}
-                      >
-                        <h2
-                          className="font-mono text-xs uppercase tracking-widest"
-                          style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
-                        >
-                          Completed Tasks
-                        </h2>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                              {['Title', 'Project', 'Category', 'Est.', 'Actual', 'Date'].map((h) => (
-                                <th
-                                  key={h}
-                                  className="text-left py-3 px-4 font-mono text-xs"
-                                  style={{ color: 'var(--text3)', fontWeight: 400 }}
-                                >
-                                  {h}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {report.completedTasks.map((task) => {
-                              const proj       = projects.find((p) => p.id === task.project_id)
-                              const overBudget = task.actual_hours && task.estimated_hours && task.actual_hours > task.estimated_hours
-                              return (
-                                <>
-                                  <tr
-                                    key={task.id}
-                                    className="transition-colors duration-100"
-                                    style={{ borderBottom: task.completion_note ? 'none' : '1px solid var(--border)' }}
-                                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
-                                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                                  >
-                                    <td className="py-3 px-4 font-syne text-xs max-w-[180px] truncate" style={{ color: 'var(--text)' }}>
-                                      {task.title}
-                                    </td>
-                                    <td className="py-3 px-4">
-                                      {proj && (
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: proj.color }} />
-                                          <span className="font-syne text-xs" style={{ color: 'var(--text2)' }}>{proj.name}</span>
-                                        </div>
-                                      )}
-                                    </td>
-                                    <td className="py-3 px-4 font-mono text-xs" style={{ color: 'var(--text3)' }}>
-                                      {task.category}
-                                    </td>
-                                    <td className="py-3 px-4 font-mono text-xs" style={{ color: 'var(--text3)' }}>
-                                      {task.estimated_hours ?? '—'}
-                                    </td>
-                                    <td className="py-3 px-4 font-mono text-xs" style={{ color: overBudget ? 'var(--col-high)' : 'var(--teal)' }}>
-                                      {task.actual_hours ?? '—'}
-                                    </td>
-                                    <td className="py-3 px-4 font-mono text-xs" style={{ color: 'var(--text3)' }}>
-                                      {new Date(task.completed_at || '').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                    </td>
-                                  </tr>
-                                  {/* Traces note row — only shown when a note exists */}
-                                  {task.completion_note && (
-                                    <tr
-                                      key={`${task.id}-note`}
-                                      style={{ borderBottom: '1px solid var(--border)' }}
-                                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
-                                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                                    >
-                                      <td
-                                        colSpan={6}
-                                        className="px-4 pb-3"
-                                      >
-                                        <p
-                                          className="font-syne text-xs italic leading-relaxed"
-                                          style={{ color: 'var(--text3)', paddingLeft: '2px' }}
-                                        >
-                                          "{task.completion_note}"
-                                        </p>
-                                      </td>
-                                    </tr>
-                                  )}
-                                </>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       <BottomNav />
+
+      <ProjectModal
+        isOpen={showModal}
+        onClose={() => { setShowModal(false); setEditingProject(null) }}
+        project={editingProject}
+        onSave={handleSave}
+        onDelete={handleDelete}
+        canDelete={editingProject ? tasks.filter((t) => t.project_id === editingProject.id).length === 0 : true}
+        recurringTasks={editingProject ? tasks.filter((t) => t.project_id === editingProject.id && t.is_recurring) : []}
+        onEditRecurringTask={handleEditRecurringTask}
+        onDeleteRecurringTask={handleTaskDelete}
+      />
+
+      <TaskModal
+        isOpen={taskModalOpen}
+        onClose={closeTaskModal}
+        task={editingTask}
+        projects={projects}
+        allTasks={tasks}
+        onSave={handleTaskSave}
+        onDelete={handleTaskDelete}
+        onCreate={handleTaskCreate}
+      />
     </div>
   )
 }
