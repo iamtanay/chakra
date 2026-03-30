@@ -20,6 +20,8 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [dragOverStatus, setDragOverStatus] = useState<Status | null>(null)
+  // Web-only: toggle to reveal Done tasks older than 24 h
+  const [showOldCompleted, setShowOldCompleted] = useState(false)
   const projectsMap = new Map(projects.map((p) => [p.id, p]))
 
   const handleDragStart = (taskId: string) => {
@@ -75,6 +77,9 @@ export function KanbanBoard({
           draggedTaskId={draggedTaskId}
           isDragOver={dragOverStatus === status}
           onAddTask={onAddTask}
+          // Done-column history toggle — only relevant for Done, ignored by others
+          showOldCompleted={status === 'Done' ? showOldCompleted : false}
+          onToggleOldCompleted={status === 'Done' ? () => setShowOldCompleted((v) => !v) : undefined}
         />
       ))}
     </div>

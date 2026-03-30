@@ -41,6 +41,14 @@ export interface DriftEntry {
  */
 export const MIN_DRIFT_SAMPLES = 3
 
+/**
+ * Round a raw hours value to 2 decimal places.
+ * 15 min (0.25 h) → 0.25, NOT 0.3.
+ */
+function roundHours(raw: number): number {
+  return Math.round(raw * 100) / 100
+}
+
 // ── Drift computation ─────────────────────────────────────────────────────────
 
 /**
@@ -199,7 +207,8 @@ export function generateReportData(
   })
 
   const tasksCompleted = completedTasks.length
-  const totalHours = completedTasks.reduce((sum, task) => {
+  // Raw sum — rounded to 2dp on the way out
+  const totalHoursRaw = completedTasks.reduce((sum, task) => {
     return sum + (task.actual_hours ?? task.estimated_hours ?? 0)
   }, 0)
 
@@ -249,8 +258,15 @@ export function generateReportData(
     }
   }
 
-  const byProject  = Array.from(byProjectMap.values())
-  const byCategory = Array.from(byCategoryMap.values())
+  // Round hours to 2dp in each aggregated row
+  const byProject = Array.from(byProjectMap.values()).map((p) => ({
+    ...p,
+    hours: roundHours(p.hours),
+  }))
+  const byCategory = Array.from(byCategoryMap.values()).map((c) => ({
+    ...c,
+    hours: roundHours(c.hours),
+  }))
 
   const projectsActive = new Set(completedTasks.map((t) => t.project_id)).size
   const categoriesUsed = new Set(completedTasks.map((t) => t.category)).size
@@ -306,7 +322,7 @@ export function generateReportData(
 
   return {
     tasksCompleted,
-    totalHours:      Math.round(totalHours * 10) / 10,
+    totalHours:      roundHours(totalHoursRaw),
     projectsActive,
     categoriesUsed,
     byProject:       byProject.sort((a, b) => b.hours - a.hours),

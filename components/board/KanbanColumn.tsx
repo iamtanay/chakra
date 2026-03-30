@@ -1,8 +1,10 @@
 'use client'
 
+import { useMemo } from 'react'
 import type { Task, Project, Status } from '@/types'
 import { TaskCard } from './TaskCard'
-import { Plus } from 'lucide-react'
+import { Plus, History } from 'lucide-react'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 interface KanbanColumnProps {
   status: 'Todo' | 'In Progress' | 'Done'
@@ -19,6 +21,9 @@ interface KanbanColumnProps {
   draggedTaskId: string | null
   isDragOver: boolean
   onAddTask: (status: Status) => void
+  // Done-column specific
+  showOldCompleted?: boolean
+  onToggleOldCompleted?: () => void
 }
 
 const statusConfig = {
@@ -28,6 +33,9 @@ const statusConfig = {
 }
 
 const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 }
+
+/** Tasks older than this many ms are hidden from the Done column by default */
+const DONE_TTL_MS = 24 * 60 * 60 * 1000
 
 function sortTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
@@ -45,6 +53,15 @@ function sortTasks(tasks: Task[]): Task[] {
   })
 }
 
+/**
+ * Returns true if a completed task is older than DONE_TTL_MS.
+ * Tasks without completed_at are treated as recent (never hidden).
+ */
+function isOlderThan24h(task: Task): boolean {
+  if (!task.completed_at) return false
+  return Date.now() - new Date(task.completed_at).getTime() > DONE_TTL_MS
+}
+
 export function KanbanColumn({
   status, tasks, projects,
   onCardClick, onComplete, onTodayToggle,
@@ -52,9 +69,41 @@ export function KanbanColumn({
   onDragStart, onDragEnd,
   draggedTaskId, isDragOver,
   onAddTask,
+  showOldCompleted = false,
+  onToggleOldCompleted,
 }: KanbanColumnProps) {
   const cfg = statusConfig[status]
-  const col = sortTasks(tasks.filter((t) => t.status === status))
+  const isDesktop = useMediaQuery('(min-width: 768px)')
+
+  // All tasks in this status, sorted
+  const allInStatus = useMemo(
+    () => sortTasks(tasks.filter((t) => t.status === status)),
+    [tasks, status],
+  )
+
+  // For Done: split into recent (≤24 h) and old (>24 h)
+  const { visibleTasks, hiddenCount } = useMemo(() => {
+    if (status !== 'Done') {
+      return { visibleTasks: allInStatus, hiddenCount: 0 }
+    }
+
+    const recent: Task[] = []
+    const old: Task[]    = []
+    for (const t of allInStatus) {
+      if (isOlderThan24h(t)) old.push(t)
+      else recent.push(t)
+    }
+
+    // On mobile: always hide old tasks, no override
+    // On desktop: respect the showOldCompleted toggle
+    const showOld = isDesktop && showOldCompleted
+    return {
+      visibleTasks: showOld ? allInStatus : recent,
+      hiddenCount:  old.length,
+    }
+  }, [allInStatus, status, isDesktop, showOldCompleted])
+
+  const col = visibleTasks
 
   return (
     <div
@@ -82,6 +131,23 @@ export function KanbanColumn({
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {/* Done column: web-only "show history" toggle */}
+          {status === 'Done' && isDesktop && hiddenCount > 0 && onToggleOldCompleted && (
+            <button
+              onClick={onToggleOldCompleted}
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-md transition-all duration-150 font-mono text-xs"
+              style={{
+                color:      showOldCompleted ? '#0a0a0a'          : 'var(--text3)',
+                background: showOldCompleted ? 'var(--col-done)'  : 'var(--bg4)',
+                border:     showOldCompleted ? 'none'              : '1px solid var(--border)',
+              }}
+              title={showOldCompleted ? 'Hide older completed tasks' : `Show ${hiddenCount} older completed task${hiddenCount === 1 ? '' : 's'}`}
+            >
+              <History size={11} strokeWidth={2} />
+              {showOldCompleted ? 'Hide history' : `+${hiddenCount}`}
+            </button>
+          )}
+
           <span
             className="font-mono text-xs w-6 h-6 rounded-full flex items-center justify-center"
             style={{ background: 'var(--bg4)', color: 'var(--text3)' }}
@@ -152,27 +218,43 @@ export function KanbanColumn({
               <span className="font-mono text-xs">Add task</span>
             </button>
 
-            {col.map((task) => (
-              <div
-                key={task.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'move'
-                  onDragStart(task.id)
-                }}
-                onDragEnd={onDragEnd}
-                style={{ cursor: 'grab' }}
+            {col.map((task) => {
+              // Mark tasks that are old-completed and only showing via the toggle
+              const isOldCompleted = status === 'Done' && isOlderThan24h(task)
+
+              return (
+                <div
+                  key={task.id}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'move'
+                    onDragStart(task.id)
+                  }}
+                  onDragEnd={onDragEnd}
+                  style={{ cursor: 'grab' }}
+                >
+                  <TaskCard
+                    task={task}
+                    project={projects.get(task.project_id)}
+                    onCardClick={onCardClick}
+                    onComplete={onComplete}
+                    onTodayToggle={onTodayToggle}
+                    isDragging={draggedTaskId === task.id}
+                    isOldCompleted={isOldCompleted}
+                  />
+                </div>
+              )
+            })}
+
+            {/* Footer hint on desktop when history is expanded */}
+            {status === 'Done' && isDesktop && showOldCompleted && hiddenCount > 0 && (
+              <p
+                className="text-center font-mono text-xs py-2"
+                style={{ color: 'var(--text3)', opacity: 0.5 }}
               >
-                <TaskCard
-                  task={task}
-                  project={projects.get(task.project_id)}
-                  onCardClick={onCardClick}
-                  onComplete={onComplete}
-                  onTodayToggle={onTodayToggle}
-                  isDragging={draggedTaskId === task.id}
-                />
-              </div>
-            ))}
+                showing {hiddenCount} older task{hiddenCount === 1 ? '' : 's'}
+              </p>
+            )}
           </>
         )}
       </div>

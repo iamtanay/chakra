@@ -19,6 +19,12 @@ interface TaskCardProps {
   onComplete: (task: Task) => void
   onTodayToggle: (task: Task) => void
   isDragging?: boolean
+  /**
+   * True when this is a Done task that completed more than 24 h ago and is
+   * being shown via the "history" toggle on desktop. Renders the card slightly
+   * dimmed so the user can visually distinguish it from tasks completed today.
+   */
+  isOldCompleted?: boolean
 }
 
 const priorityColors: Record<string, string> = {
@@ -66,13 +72,28 @@ function formatDueDate(iso: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+/** Format a completed_at timestamp as a relative or absolute label. */
+function formatCompletedAt(iso: string): string {
+  const d    = new Date(iso)
+  const now  = Date.now()
+  const diff = now - d.getTime()
+  const hrs  = Math.floor(diff / (1000 * 60 * 60))
+  const days = Math.floor(hrs / 24)
+
+  if (days === 0) return `${hrs}h ago`
+  if (days === 1) return 'yesterday'
+  if (days < 7)  return `${days}d ago`
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 export function TaskCard({
   task,
   project,
   onCardClick,
   onComplete,
   onTodayToggle,
-  isDragging = false,
+  isDragging     = false,
+  isOldCompleted = false,
 }: TaskCardProps) {
   const [hovered, setHovered] = useState(false)
 
@@ -130,6 +151,9 @@ export function TaskCard({
         border:     `1px solid ${cardBorder}`,
         overflow:   'hidden',
         boxShadow:  warmStreak ? '0 0 16px rgba(232,162,71,0.10)' : undefined,
+        // Old completed tasks are subtly dimmed to distinguish from today's work
+        opacity:    isOldCompleted ? 0.55 : 1,
+        transition: 'opacity 150ms ease',
       }}
     >
       {/* Priority accent bar */}
@@ -137,7 +161,7 @@ export function TaskCard({
         className="h-0.5 w-full absolute top-0 left-0"
         style={{
           background: `linear-gradient(90deg, ${pColor} 0%, transparent 70%)`,
-          opacity: 0.8,
+          opacity: isOldCompleted ? 0.4 : 0.8,
         }}
       />
 
@@ -227,7 +251,7 @@ export function TaskCard({
               />
             </button>
           ) : (
-            hovered && (
+            hovered && !isOldCompleted && (
               <button
                 onClick={(e) => { e.stopPropagation(); onTodayToggle(task) }}
                 className="flex-shrink-0 opacity-30 hover:opacity-70 transition-opacity"
@@ -273,13 +297,23 @@ export function TaskCard({
           </div>
 
           <div className="flex items-center gap-2">
-            {displayDate && (
+            {/* For old completed tasks, show when it was completed instead of due date */}
+            {isOldCompleted && task.completed_at ? (
               <span
                 className="font-mono text-xs"
-                style={{ color: dateColor }}
+                style={{ color: 'var(--text3)', opacity: 0.7 }}
               >
-                {formatDueDate(displayDate)}
+                {formatCompletedAt(task.completed_at)}
               </span>
+            ) : (
+              displayDate && (
+                <span
+                  className="font-mono text-xs"
+                  style={{ color: dateColor }}
+                >
+                  {formatDueDate(displayDate)}
+                </span>
+              )
             )}
             {task.estimated_hours && (
               <span
@@ -293,29 +327,31 @@ export function TaskCard({
         </div>
       </div>
 
-      {/* Complete button */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onComplete(task) }}
-        className={`
-          absolute right-3 top-1/2 -translate-y-1/2
-          w-8 h-8 rounded-full flex items-center justify-center
-          transition-all duration-150
-          md:opacity-0 md:scale-75 opacity-100 scale-100
-          ${hovered ? 'md:opacity-100 md:scale-100' : ''}
-        `}
-        style={{
-          background: task.is_recurring ? 'var(--amber)' : 'var(--teal)',
-          boxShadow:  task.is_recurring
-            ? '0 0 12px rgba(232,162,71,0.35)'
-            : '0 0 12px rgba(45,212,191,0.35)',
-        }}
-        title={task.is_recurring ? 'Complete this cycle' : 'Mark complete'}
-      >
-        {task.is_recurring
-          ? <RefreshCw size={13} style={{ color: '#080909' }} strokeWidth={2.5} />
-          : <Check     size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
-        }
-      </button>
+      {/* Complete button — hidden for old completed tasks shown via history toggle */}
+      {!isOldCompleted && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onComplete(task) }}
+          className={`
+            absolute right-3 top-1/2 -translate-y-1/2
+            w-8 h-8 rounded-full flex items-center justify-center
+            transition-all duration-150
+            md:opacity-0 md:scale-75 opacity-100 scale-100
+            ${hovered ? 'md:opacity-100 md:scale-100' : ''}
+          `}
+          style={{
+            background: task.is_recurring ? 'var(--amber)' : 'var(--teal)',
+            boxShadow:  task.is_recurring
+              ? '0 0 12px rgba(232,162,71,0.35)'
+              : '0 0 12px rgba(45,212,191,0.35)',
+          }}
+          title={task.is_recurring ? 'Complete this cycle' : 'Mark complete'}
+        >
+          {task.is_recurring
+            ? <RefreshCw size={13} style={{ color: '#080909' }} strokeWidth={2.5} />
+            : <Check     size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
+          }
+        </button>
+      )}
     </div>
   )
 }
