@@ -83,7 +83,7 @@ export function buildMorningPayload(tasks: TaskRow[]): PushPayload {
     body,
     type:  'morning',
     badge: '/icon-192.png',
-    data:  { url: '/' },
+    data:  { url: '/today' },
   }
 }
 
@@ -127,7 +127,7 @@ export function buildEveningPayload(
       body:  lines.join('\n'),
       type:  'evening',
       badge: '/icon-192.png',
-      data:  { url: '/' },
+      data:  { url: '/today' },
     }
   }
 
@@ -146,7 +146,7 @@ export function buildEveningPayload(
       body:  lines.join('\n'),
       type:  'evening',
       badge: '/icon-192.png',
-      data:  { url: '/' },
+      data:  { url: '/today' },
     }
   }
 
@@ -170,6 +170,6 @@ export function buildEveningPayload(
     body:  parts.join('\n'),
     type:  'evening',
     badge: '/icon-192.png',
-    data:  { url: '/' },
+    data:  { url: '/today' },
   }
 }
