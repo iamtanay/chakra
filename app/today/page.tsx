@@ -90,29 +90,35 @@ export default function TodayPage() {
   const todayStr = toISODate(new Date())
 
   /**
-   * Returns true if a task's due date is within the 48-hour overdue window.
-   * Includes tasks due today and tasks overdue by up to 2 calendar days.
-   * Tasks overdue beyond 48 hours are excluded to reduce noise.
+   * Returns true if a non-recurring task is overdue within the 2-day window.
+   * "Overdue" means due_date is strictly in the past (before today).
+   * Window: due_date >= (today - 2 days) AND due_date < today.
+   * Future tasks and recurring tasks are never included here.
    */
-  const isWithin48hOverdue = (t: Task): boolean => {
-    const effectiveDate = t.next_due_date ?? t.due_date
-    if (!effectiveDate) return false
+  const isRecentlyOverdue = (t: Task): boolean => {
+    // Recurring tasks manage their own schedule via next_due_date — never treat
+    // them as overdue here; only include them if due today or today_flag.
+    if (t.is_recurring) return false
+
+    const dueISO = t.due_date
+    if (!dueISO) return false
 
     // Parse as local midnight to avoid UTC-offset surprises
-    const dueDate   = parseLocalDate(effectiveDate)
+    const dueDate   = parseLocalDate(dueISO)
     const todayDate = parseLocalDate(todayStr)
 
-    const diffMs  = todayDate.getTime() - dueDate.getTime()
-    const diffHrs = diffMs / (1000 * 60 * 60)
+    // diffDays > 0 means the due date is in the past
+    const diffMs   = todayDate.getTime() - dueDate.getTime()
+    const diffDays = diffMs / (1000 * 60 * 60 * 24)
 
-    // Include if: due today (diff ≤ 0) OR overdue within 48 hours (0 < diff ≤ 48)
-    return diffHrs <= 48
+    // Include only if overdue by 1 or 2 days (29th and 30th when today is 31st)
+    return diffDays >= 1 && diffDays <= 2
   }
 
-  // Helper: a task belongs in today if manually flagged, due today, or overdue within 48h
+  // Helper: a task belongs in today if manually flagged, due today, or overdue within 2 days
   const isInToday = (t: Task) => {
     const effectiveDate = t.next_due_date ?? t.due_date
-    return t.today_flag || effectiveDate === todayStr || isWithin48hOverdue(t)
+    return t.today_flag || effectiveDate === todayStr || isRecentlyOverdue(t)
   }
 
   // Today View: today_flag tasks + deadline-today tasks, not Done, sorted by priority then due date

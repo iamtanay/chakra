@@ -48,19 +48,22 @@ webpush.setVapidDetails(
  * today_flag tasks with no due date are always included (caller responsibility).
  */
 function isWithin48hOverdue(task: TaskRow, todayISO: string): boolean {
-  // Coerce null/undefined → falsy so the guard below works uniformly
-  const dueISO: string | null | undefined = task.next_due_date ?? task.due_date
-  if (!dueISO) return true // no due date → include (handled by caller for today_flag)
+  // Recurring tasks manage their own schedule via next_due_date — only include
+  // them if they match today exactly (handled by the query/caller), not as overdue.
+  if (task.is_recurring) return false
 
-  // Parse as local midnight to avoid UTC-offset surprises
+  // Use due_date only — next_due_date is a future recurring cycle, not an overdue date
+  const dueISO: string | null | undefined = task.due_date
+  if (!dueISO) return false
+
   const dueDate   = new Date(`${dueISO}T00:00:00`)
   const todayDate = new Date(`${todayISO}T00:00:00`)
 
-  const diffMs  = todayDate.getTime() - dueDate.getTime()
-  const diffHrs = diffMs / (1000 * 60 * 60)
+  const diffMs   = todayDate.getTime() - dueDate.getTime()
+  const diffDays = diffMs / (1000 * 60 * 60 * 24)
 
-  // Include if: due today (diff ≤ 0) OR overdue within 48 hours (0 < diff ≤ 48)
-  return diffHrs <= 48
+  // Include only if overdue by 1 or 2 days — strictly in the past, not future
+  return diffDays >= 1 && diffDays <= 2
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -132,17 +135,15 @@ export async function GET(request: Request) {
     const todayFlagPending = (stillPendingRaw  || []) as unknown as TaskRow[]
     const duePendingAll    = (duePendingRaw    || []) as unknown as TaskRow[]
 
-    // Apply precise 48h overdue filter to due-date tasks
-    const duePendingFiltered = duePendingAll.filter((t) => isWithin48hOverdue(t, todayISO ?? ''))
-
-    // Apply 48h filter to today_flag tasks that also have a due date
-    // (today_flag tasks with no due date are always included)
-    const todayFlagPendingFiltered = todayFlagPending.filter((t) => {
-      // Treat both null and undefined as "no due date" → always include
-      const hasDueDate = Boolean(t.due_date) || Boolean(t.next_due_date)
-      if (!hasDueDate) return true
+    // For due-date tasks (today_flag=false): include if due today OR overdue by 1–2 days
+    const duePendingFiltered = duePendingAll.filter((t) => {
+      const effectiveDate = t.next_due_date ?? t.due_date
+      if (effectiveDate === todayISO) return true
       return isWithin48hOverdue(t, todayISO ?? '')
     })
+
+    // today_flag tasks: always include (user explicitly flagged them)
+    const todayFlagPendingFiltered = todayFlagPending
 
     // Merge pending (no duplicates: today_flag=false vs true, filtered above)
     const stillPending = [...todayFlagPendingFiltered, ...duePendingFiltered]
