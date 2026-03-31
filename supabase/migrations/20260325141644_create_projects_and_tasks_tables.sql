@@ -88,8 +88,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     )),
 
   due_date date,
-  estimated_hours numeric(4,1),
-  actual_hours numeric(4,1),
+  estimated_hours numeric(6,2),
+  actual_hours numeric(6,2),
   today_flag boolean NOT NULL DEFAULT false,
   created_at timestamptz DEFAULT now(),
   completed_at timestamptz
