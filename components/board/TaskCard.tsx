@@ -175,10 +175,10 @@ export function TaskCard({
       }
     }
     if (isMobile) {
-      // Hollow circle — makes it obvious the task is NOT done yet
+      // Hollow circle with green border — signals "tap to mark done"
       return {
         background: 'transparent',
-        border:     '2px solid var(--border)',
+        border:     '2px solid var(--teal)',
         boxShadow:  'none',
       }
     }
@@ -210,9 +210,9 @@ export function TaskCard({
     if (isDone) {
       return <Check size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
     }
-    // Mobile hollow circle — no inner icon; the empty circle communicates "tap to complete"
+    // Mobile hollow circle with green tick
     if (isMobile) {
-      return null
+      return <Check size={14} style={{ color: 'var(--teal)' }} strokeWidth={2.5} />
     }
     if (task.is_recurring) {
       return <RefreshCw size={13} style={{ color: '#080909' }} strokeWidth={2.5} />

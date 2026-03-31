@@ -89,10 +89,30 @@ export default function TodayPage() {
   // Today's date string (YYYY-MM-DD) for deadline comparison
   const todayStr = toISODate(new Date())
 
-  // Helper: a task belongs in today if manually flagged OR deadline is today
+  /**
+   * Returns true if a task's due date is within the 48-hour overdue window.
+   * Includes tasks due today and tasks overdue by up to 2 calendar days.
+   * Tasks overdue beyond 48 hours are excluded to reduce noise.
+   */
+  const isWithin48hOverdue = (t: Task): boolean => {
+    const effectiveDate = t.next_due_date ?? t.due_date
+    if (!effectiveDate) return false
+
+    // Parse as local midnight to avoid UTC-offset surprises
+    const dueDate   = parseLocalDate(effectiveDate)
+    const todayDate = parseLocalDate(todayStr)
+
+    const diffMs  = todayDate.getTime() - dueDate.getTime()
+    const diffHrs = diffMs / (1000 * 60 * 60)
+
+    // Include if: due today (diff ≤ 0) OR overdue within 48 hours (0 < diff ≤ 48)
+    return diffHrs <= 48
+  }
+
+  // Helper: a task belongs in today if manually flagged, due today, or overdue within 48h
   const isInToday = (t: Task) => {
     const effectiveDate = t.next_due_date ?? t.due_date
-    return t.today_flag || effectiveDate === todayStr
+    return t.today_flag || effectiveDate === todayStr || isWithin48hOverdue(t)
   }
 
   // Today View: today_flag tasks + deadline-today tasks, not Done, sorted by priority then due date
@@ -475,21 +495,20 @@ function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar, isAutoAdded
         </button>
       )}
 
-      {/* Complete button */}
+      {/* Complete button — hollow circle with green border and tick for not-done tasks */}
       <button
         onClick={(e) => { e.stopPropagation(); onComplete() }}
         className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150"
         style={{
-          background: task.is_recurring ? 'var(--amber)' : 'var(--teal)',
-          boxShadow:  task.is_recurring
-            ? '0 0 12px rgba(232,162,71,0.3)'
-            : '0 0 12px rgba(45,212,191,0.3)',
+          background: 'transparent',
+          border:     task.is_recurring ? '2px solid var(--amber)' : '2px solid var(--teal)',
+          boxShadow:  'none',
         }}
         title={task.is_recurring ? 'Complete this cycle' : 'Mark complete'}
       >
         {task.is_recurring
-          ? <RefreshCw size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
-          : <Check     size={15} style={{ color: '#080909' }} strokeWidth={2.5} />
+          ? <RefreshCw size={14} style={{ color: 'var(--amber)' }} strokeWidth={2.5} />
+          : <Check     size={15} style={{ color: 'var(--teal)'  }} strokeWidth={2.5} />
         }
       </button>
     </div>
