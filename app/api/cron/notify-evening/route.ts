@@ -48,7 +48,8 @@ webpush.setVapidDetails(
  * today_flag tasks with no due date are always included (caller responsibility).
  */
 function isWithin48hOverdue(task: TaskRow, todayISO: string): boolean {
-  const dueISO = task.next_due_date ?? task.due_date
+  // Coerce null/undefined → falsy so the guard below works uniformly
+  const dueISO: string | null | undefined = task.next_due_date ?? task.due_date
   if (!dueISO) return true // no due date → include (handled by caller for today_flag)
 
   // Parse as local midnight to avoid UTC-offset surprises
@@ -132,13 +133,15 @@ export async function GET(request: Request) {
     const duePendingAll    = (duePendingRaw    || []) as unknown as TaskRow[]
 
     // Apply precise 48h overdue filter to due-date tasks
-    const duePendingFiltered = duePendingAll.filter((t) => isWithin48hOverdue(t, todayISO))
+    const duePendingFiltered = duePendingAll.filter((t) => isWithin48hOverdue(t, todayISO ?? ''))
 
     // Apply 48h filter to today_flag tasks that also have a due date
     // (today_flag tasks with no due date are always included)
     const todayFlagPendingFiltered = todayFlagPending.filter((t) => {
-      if (!t.due_date && !t.next_due_date) return true // no due date → always include
-      return isWithin48hOverdue(t, todayISO)
+      // Treat both null and undefined as "no due date" → always include
+      const hasDueDate = Boolean(t.due_date) || Boolean(t.next_due_date)
+      if (!hasDueDate) return true
+      return isWithin48hOverdue(t, todayISO ?? '')
     })
 
     // Merge pending (no duplicates: today_flag=false vs true, filtered above)

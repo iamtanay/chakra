@@ -44,7 +44,8 @@ webpush.setVapidDetails(
  * and the user is already aware of them.
  */
 function isWithin48hOverdue(task: TaskRow, todayISO: string): boolean {
-  const dueISO = task.next_due_date ?? task.due_date
+  // Coerce null/undefined → falsy so the guard below works uniformly
+  const dueISO: string | null | undefined = task.next_due_date ?? task.due_date
   if (!dueISO) return true // no due date → always include (today_flag tasks)
 
   // Parse as local midnight to avoid UTC-offset surprises
@@ -128,8 +129,9 @@ export async function GET(request: Request) {
     const allFetched    = (tasks || []) as unknown as TaskRow[]
     const pendingTasks  = allFetched.filter((t) => {
       // today_flag tasks with no due date → always include
-      if (t.today_flag && !t.due_date && !t.next_due_date) return true
-      return isWithin48hOverdue(t, todayISO)
+      const hasDueDate = Boolean(t.due_date) || Boolean(t.next_due_date)
+      if (t.today_flag && !hasDueDate) return true
+      return isWithin48hOverdue(t, todayISO ?? '')
     })
 
     // 6. Fan-out: send one notification per subscription
