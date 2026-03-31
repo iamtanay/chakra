@@ -200,6 +200,32 @@ export default function BoardPage() {
 
   const handleTaskComplete = (task: Task) => setCompletingTask(task)
 
+  /**
+   * Undo a completed task — moves it back to 'Todo' and clears completion data.
+   * Only applies to non-recurring Done tasks (recurring tasks don't stay in Done).
+   */
+  const handleUndoDone = async (task: Task) => {
+    if (task.is_recurring) return // recurring tasks manage their own state via cycles
+    try {
+      setLogoSpin('loop')
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === task.id
+            ? { ...t, status: 'Todo' as const, completed_at: null, actual_hours: null, completion_note: null }
+            : t
+        )
+      )
+      await db('tasks')
+        .update({ status: 'Todo', completed_at: null, actual_hours: null, completion_note: null })
+        .eq('id', task.id)
+      setLogoSpin(null)
+    } catch (err) {
+      console.error('Error undoing task completion:', err)
+      loadData()
+      setLogoSpin(null)
+    }
+  }
+
   const handleCompleteConfirm = async (hours: number | null, note: string | null) => {
     if (!completingTask) return
     const task = completingTask
@@ -362,6 +388,7 @@ export default function BoardPage() {
               projects={projects}
               onCardClick={openEditModal}
               onComplete={handleTaskComplete}
+              onUndoDone={handleUndoDone}
               onTodayToggle={handleTodayToggle}
               onStatusChange={handleStatusChange}
               onAddTask={openCreateModal}
@@ -372,6 +399,7 @@ export default function BoardPage() {
               projects={projects}
               onCardClick={openEditModal}
               onComplete={handleTaskComplete}
+              onUndoDone={handleUndoDone}
               onTodayToggle={handleTodayToggle}
               onStatusChange={handleStatusChange}
               onAddTask={openCreateModal}

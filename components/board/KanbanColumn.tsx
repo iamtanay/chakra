@@ -12,6 +12,7 @@ interface KanbanColumnProps {
   projects: Map<string, Project>
   onCardClick: (task: Task) => void
   onComplete: (task: Task) => void
+  onUndoDone: (task: Task) => void
   onTodayToggle: (task: Task) => void
   onDragOver: (e: React.DragEvent) => void
   onDragLeave: () => void
@@ -64,7 +65,7 @@ function isOlderThan24h(task: Task): boolean {
 
 export function KanbanColumn({
   status, tasks, projects,
-  onCardClick, onComplete, onTodayToggle,
+  onCardClick, onComplete, onUndoDone, onTodayToggle,
   onDragOver, onDragLeave, onDrop,
   onDragStart, onDragEnd,
   draggedTaskId, isDragOver,
@@ -238,6 +239,7 @@ export function KanbanColumn({
                     project={projects.get(task.project_id)}
                     onCardClick={onCardClick}
                     onComplete={onComplete}
+                    onUndoDone={onUndoDone}
                     onTodayToggle={onTodayToggle}
                     isDragging={draggedTaskId === task.id}
                     isOldCompleted={isOldCompleted}

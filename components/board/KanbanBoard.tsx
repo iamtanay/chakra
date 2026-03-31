@@ -9,6 +9,7 @@ interface KanbanBoardProps {
   projects: Project[]
   onCardClick: (task: Task) => void
   onComplete: (task: Task) => void
+  onUndoDone: (task: Task) => void
   onTodayToggle: (task: Task) => void
   onStatusChange: (taskId: string, newStatus: Status) => void
   onAddTask: (status: Status) => void
@@ -16,7 +17,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({
   tasks, projects,
-  onCardClick, onComplete, onTodayToggle, onStatusChange, onAddTask,
+  onCardClick, onComplete, onUndoDone, onTodayToggle, onStatusChange, onAddTask,
 }: KanbanBoardProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [dragOverStatus, setDragOverStatus] = useState<Status | null>(null)
@@ -68,6 +69,7 @@ export function KanbanBoard({
           projects={projectsMap}
           onCardClick={onCardClick}
           onComplete={onComplete}
+          onUndoDone={onUndoDone}
           onTodayToggle={onTodayToggle}
           onDragOver={(e) => handleDragOver(e, status)}
           onDragLeave={handleDragLeave}

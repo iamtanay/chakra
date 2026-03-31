@@ -10,6 +10,7 @@ interface MobileBoardProps {
   projects: Project[]
   onCardClick: (task: Task) => void
   onComplete: (task: Task) => void
+  onUndoDone: (task: Task) => void
   onTodayToggle: (task: Task) => void
   onStatusChange: (taskId: string, newStatus: Status) => void
   onAddTask: (status: Status) => void
@@ -42,7 +43,7 @@ function sortTasks(tasks: Task[]): Task[] {
 
 export function MobileBoard({
   tasks, projects,
-  onCardClick, onComplete, onTodayToggle, onStatusChange, onAddTask,
+  onCardClick, onComplete, onUndoDone, onTodayToggle, onStatusChange, onAddTask,
 }: MobileBoardProps) {
   const [activeStatus, setActiveStatus] = useState<Status>('Todo')
   const [swipeState, setSwipeState] = useState<{ taskId: string; distance: number } | null>(null)
@@ -177,7 +178,9 @@ export function MobileBoard({
                       project={projectsMap.get(task.project_id)}
                       onCardClick={onCardClick}
                       onComplete={onComplete}
+                      onUndoDone={onUndoDone}
                       onTodayToggle={onTodayToggle}
+                      isMobile
                     />
                   </div>
                 </div>

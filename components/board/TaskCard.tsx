@@ -17,6 +17,11 @@ interface TaskCardProps {
   project: Project | undefined
   onCardClick: (task: Task) => void
   onComplete: (task: Task) => void
+  /**
+   * Called when the user clicks the undo-done tick on a completed task.
+   * Moves the task back to 'Todo'.
+   */
+  onUndoDone?: (task: Task) => void
   onTodayToggle: (task: Task) => void
   isDragging?: boolean
   /**
@@ -25,6 +30,14 @@ interface TaskCardProps {
    * dimmed so the user can visually distinguish it from tasks completed today.
    */
   isOldCompleted?: boolean
+  /**
+   * True on mobile. Controls tick-mark appearance:
+   * - mobile non-done: hollow circle (always visible, tap to complete)
+   * - mobile done: filled teal circle (always visible, tap to undo)
+   * - web non-done: filled teal/amber circle on hover only
+   * - web done: filled teal circle always visible, click to undo
+   */
+  isMobile?: boolean
 }
 
 const priorityColors: Record<string, string> = {
@@ -39,14 +52,12 @@ const priorityBg: Record<string, string> = {
 }
 
 const categoryAbbr: Record<string, string> = {
-  // Work
   Development:            'DEV',
   Research:               'RES',
   'Review / QA':          'QA',
   Design:                 'DSN',
   'Journal Writing':      'JNL',
   'Document Generation':  'DOC',
-  // Personal
   'Finance & Banking':    'FIN',
   'Bills & Payments':     'BILL',
   'Home & Maintenance':   'HOME',
@@ -57,7 +68,6 @@ const categoryAbbr: Record<string, string> = {
   'Travel & Bookings':    'TRV',
   'Legal & Admin':        'LGL',
   'Self Care':            'SLF',
-  // Study
   Reading:                'READ',
   'Note Taking':          'NOTE',
   Practice:               'PRAC',
@@ -91,13 +101,16 @@ export function TaskCard({
   project,
   onCardClick,
   onComplete,
+  onUndoDone,
   onTodayToggle,
   isDragging     = false,
   isOldCompleted = false,
+  isMobile       = false,
 }: TaskCardProps) {
   const [hovered, setHovered] = useState(false)
 
-  const today = todayLocal()
+  const today  = todayLocal()
+  const isDone = task.status === 'Done'
 
   // ── Date logic ─────────────────────────────────────────────────────────────
   const displayDate = task.next_due_date || task.due_date
@@ -105,15 +118,14 @@ export function TaskCard({
   const isOverdue =
     displayDate &&
     parseLocalDate(displayDate) < today &&
-    task.status !== 'Done'
+    !isDone
 
   const dueStatus = task.is_recurring ? recurringDueStatus(task, today) : null
 
   // ── Today logic ────────────────────────────────────────────────────────────
-  // A task is "in today" if manually starred OR its deadline falls on today
-  const todayStr    = toISODate(new Date())
-  const isDueToday  = (task.next_due_date ?? task.due_date) === todayStr
-  const isInToday   = task.today_flag || isDueToday
+  const todayStr   = toISODate(new Date())
+  const isDueToday = (task.next_due_date ?? task.due_date) === todayStr
+  const isInToday  = task.today_flag || isDueToday
 
   // ── Momentum ───────────────────────────────────────────────────────────────
   const streak     = task.current_streak ?? 0
@@ -133,12 +145,86 @@ export function TaskCard({
     return isOverdue ? 'var(--col-high)' : 'var(--text3)'
   })()
 
-  // Warm streak cards get a subtle amber border glow
   const cardBorder = warmStreak
     ? 'rgba(232,162,71,0.35)'
     : task.is_recurring
       ? 'rgba(232,162,71,0.18)'
       : 'var(--border)'
+
+  // ── Action button helpers ──────────────────────────────────────────────────
+
+  /**
+   * When is the button visible?
+   *
+   * • isOldCompleted cards: never show (we keep the rendered element so
+   *   opacity transition works, but opacity stays 0 — handled in style below).
+   * • Done tasks: always visible (both web and mobile).
+   * • Mobile non-done: always visible (hollow circle).
+   * • Web non-done: visible only on hover.
+   */
+  const buttonVisible =
+    !isOldCompleted &&
+    (isDone || isMobile || hovered)
+
+  const getButtonStyle = (): React.CSSProperties => {
+    if (isDone) {
+      return {
+        background: 'var(--teal)',
+        boxShadow:  '0 0 12px rgba(45,212,191,0.35)',
+        border:     'none',
+      }
+    }
+    if (isMobile) {
+      // Hollow circle — makes it obvious the task is NOT done yet
+      return {
+        background: 'transparent',
+        border:     '2px solid var(--border)',
+        boxShadow:  'none',
+      }
+    }
+    // Web hover — recurring uses amber, one-off uses teal
+    if (task.is_recurring) {
+      return {
+        background: 'var(--amber)',
+        boxShadow:  '0 0 12px rgba(232,162,71,0.35)',
+        border:     'none',
+      }
+    }
+    return {
+      background: 'var(--teal)',
+      boxShadow:  '0 0 12px rgba(45,212,191,0.35)',
+      border:     'none',
+    }
+  }
+
+  const handleActionClick = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation()
+    if (isDone) {
+      onUndoDone?.(task)
+    } else {
+      onComplete(task)
+    }
+  }
+
+  const renderButtonIcon = () => {
+    if (isDone) {
+      return <Check size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
+    }
+    // Mobile hollow circle — no inner icon; the empty circle communicates "tap to complete"
+    if (isMobile) {
+      return null
+    }
+    if (task.is_recurring) {
+      return <RefreshCw size={13} style={{ color: '#080909' }} strokeWidth={2.5} />
+    }
+    return <Check size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
+  }
+
+  const buttonTitle = isDone
+    ? 'Undo — move back to Todo'
+    : task.is_recurring
+      ? 'Complete this cycle'
+      : 'Mark complete'
 
   return (
     <div
@@ -151,7 +237,6 @@ export function TaskCard({
         border:     `1px solid ${cardBorder}`,
         overflow:   'hidden',
         boxShadow:  warmStreak ? '0 0 16px rgba(232,162,71,0.10)' : undefined,
-        // Old completed tasks are subtly dimmed to distinguish from today's work
         opacity:    isOldCompleted ? 0.55 : 1,
         transition: 'opacity 150ms ease',
       }}
@@ -186,8 +271,8 @@ export function TaskCard({
               <span
                 className="flex items-center gap-1 font-mono text-xs px-2 py-0.5 rounded-full"
                 style={{
-                  color:      'var(--amber)',
-                  background: 'rgba(232,162,71,0.1)',
+                  color:         'var(--amber)',
+                  background:    'rgba(232,162,71,0.1)',
                   letterSpacing: '0.03em',
                 }}
               >
@@ -196,14 +281,14 @@ export function TaskCard({
               </span>
             )}
 
-            {/* Momentum streak badge — only shown for recurring tasks with streak > 0 */}
+            {/* Momentum streak badge */}
             {task.is_recurring && streak > 0 && (
               <span
                 className="flex items-center gap-1 font-mono text-xs px-2 py-0.5 rounded-full"
                 style={{
-                  color:      warmStreak ? '#080909'               : 'var(--text3)',
-                  background: warmStreak ? 'var(--amber)'          : 'var(--bg5)',
-                  border:     warmStreak ? 'none'                   : '1px solid var(--border)',
+                  color:         warmStreak ? '#080909'      : 'var(--text3)',
+                  background:    warmStreak ? 'var(--amber)' : 'var(--bg5)',
+                  border:        warmStreak ? 'none'          : '1px solid var(--border)',
                   letterSpacing: '0.03em',
                 }}
                 title={`${streak} cycle${streak === 1 ? '' : 's'} in a row`}
@@ -227,16 +312,11 @@ export function TaskCard({
             )}
           </div>
 
-          {/* Today star icon
-              - Filled amber:   manually starred (today_flag=true)
-              - Outlined amber: auto-included because deadline is today (not clickable to remove)
-              - Ghost on hover: not in today yet, click to manually star
-          */}
+          {/* Today star */}
           {isInToday ? (
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                // Only toggle if manually starred; deadline-auto tasks can't be un-starred here
                 if (task.today_flag) onTodayToggle(task)
               }}
               className="flex-shrink-0"
@@ -251,7 +331,7 @@ export function TaskCard({
               />
             </button>
           ) : (
-            hovered && !isOldCompleted && (
+            hovered && !isOldCompleted && !isDone && (
               <button
                 onClick={(e) => { e.stopPropagation(); onTodayToggle(task) }}
                 className="flex-shrink-0 opacity-30 hover:opacity-70 transition-opacity"
@@ -287,30 +367,24 @@ export function TaskCard({
           style={{ borderTop: '1px solid var(--border)' }}
         >
           <div className="flex items-center gap-2">
-            <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: pColor }}
-            />
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: pColor }} />
             <span className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
               {task.priority}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* For old completed tasks, show when it was completed instead of due date */}
             {isOldCompleted && task.completed_at ? (
-              <span
-                className="font-mono text-xs"
-                style={{ color: 'var(--text3)', opacity: 0.7 }}
-              >
+              <span className="font-mono text-xs" style={{ color: 'var(--text3)', opacity: 0.7 }}>
                 {formatCompletedAt(task.completed_at)}
+              </span>
+            ) : isDone && task.completed_at ? (
+              <span className="font-mono text-xs" style={{ color: 'var(--col-done)', opacity: 0.85 }}>
+                ✓ {formatCompletedAt(task.completed_at)}
               </span>
             ) : (
               displayDate && (
-                <span
-                  className="font-mono text-xs"
-                  style={{ color: dateColor }}
-                >
+                <span className="font-mono text-xs" style={{ color: dateColor }}>
                   {formatDueDate(displayDate)}
                 </span>
               )
@@ -327,31 +401,38 @@ export function TaskCard({
         </div>
       </div>
 
-      {/* Complete button — hidden for old completed tasks shown via history toggle */}
-      {!isOldCompleted && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onComplete(task) }}
-          className={`
-            absolute right-3 top-1/2 -translate-y-1/2
-            w-8 h-8 rounded-full flex items-center justify-center
-            transition-all duration-150
-            md:opacity-0 md:scale-75 opacity-100 scale-100
-            ${hovered ? 'md:opacity-100 md:scale-100' : ''}
-          `}
-          style={{
-            background: task.is_recurring ? 'var(--amber)' : 'var(--teal)',
-            boxShadow:  task.is_recurring
-              ? '0 0 12px rgba(232,162,71,0.35)'
-              : '0 0 12px rgba(45,212,191,0.35)',
-          }}
-          title={task.is_recurring ? 'Complete this cycle' : 'Mark complete'}
-        >
-          {task.is_recurring
-            ? <RefreshCw size={13} style={{ color: '#080909' }} strokeWidth={2.5} />
-            : <Check     size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
-          }
-        </button>
-      )}
+      {/*
+        Action button — always rendered so the opacity/scale transition is smooth.
+        Visibility is controlled by opacity + scale (not display/hidden).
+
+        Behaviour matrix:
+          isOldCompleted → always hidden (opacity 0, scale 0.75)
+          isDone         → always visible, filled teal, click = undo
+          isMobile + !done → always visible, hollow circle, tap = complete
+          web + !done    → visible on hover only, filled colour, click = complete
+      */}
+      <button
+        onClick={handleActionClick}
+        onTouchEnd={(e) => {
+          // Prevent the synthetic click from also firing on mobile
+          e.stopPropagation()
+          handleActionClick(e)
+        }}
+        className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150"
+        style={{
+          ...getButtonStyle(),
+          opacity:   isOldCompleted ? 0 : buttonVisible ? 1 : 0,
+          transform: `translateY(-50%) scale(${isOldCompleted || !buttonVisible ? 0.75 : 1})`,
+          // Prevent pointer events when invisible to avoid accidental taps
+          pointerEvents: isOldCompleted || !buttonVisible ? 'none' : 'auto',
+        }}
+        title={buttonTitle}
+        aria-label={buttonTitle}
+        // Prevent tab-focusing hidden buttons
+        tabIndex={isOldCompleted || !buttonVisible ? -1 : 0}
+      >
+        {renderButtonIcon()}
+      </button>
     </div>
   )
 }
