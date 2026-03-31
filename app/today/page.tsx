@@ -340,7 +340,7 @@ export default function TodayPage() {
                       className="font-mono text-xs uppercase tracking-widest"
                       style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
                     >
-                      Done today
+                      Done (Last 24 Hours)
                     </span>
                     <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
                     <span className="font-mono text-xs" style={{ color: 'var(--teal)' }}>
