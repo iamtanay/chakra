@@ -96,32 +96,25 @@ export default function TodayPage() {
    * Future tasks and recurring tasks are never included here.
    */
   const isRecentlyOverdue = (t: Task): boolean => {
-    // Recurring tasks manage their own schedule via next_due_date — never treat
-    // them as overdue here; only include them if due today or today_flag.
     if (t.is_recurring) return false
 
     const dueISO = t.due_date
     if (!dueISO) return false
 
-    // Parse as local midnight to avoid UTC-offset surprises
     const dueDate   = parseLocalDate(dueISO)
     const todayDate = parseLocalDate(todayStr)
 
-    // diffDays > 0 means the due date is in the past
     const diffMs   = todayDate.getTime() - dueDate.getTime()
     const diffDays = diffMs / (1000 * 60 * 60 * 24)
 
-    // Include only if overdue by 1 or 2 days (29th and 30th when today is 31st)
     return diffDays >= 1 && diffDays <= 2
   }
 
-  // Helper: a task belongs in today if manually flagged, due today, or overdue within 2 days
   const isInToday = (t: Task) => {
     const effectiveDate = t.next_due_date ?? t.due_date
     return t.today_flag || effectiveDate === todayStr || isRecentlyOverdue(t)
   }
 
-  // Today View: today_flag tasks + deadline-today tasks, not Done, sorted by priority then due date
   const todayTasks = useMemo(() => {
     return tasks
       .filter((t) => t.status !== 'Done' && isInToday(t))
@@ -136,11 +129,12 @@ export default function TodayPage() {
         if (bDate) return 1
         return 0
       })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, todayStr])
 
-  // Done tasks that were flagged or had deadline today
   const doneTodayTasks = useMemo(() => {
     return tasks.filter((t) => t.status === 'Done' && isInToday(t))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, todayStr])
 
   const projectsMap = useMemo(
@@ -175,8 +169,6 @@ export default function TodayPage() {
     }
   }
 
-  // Today view doesn't create tasks (use the Board for that), but TaskModal
-  // requires the prop — provide a no-op.
   const handleTaskCreate = async (_data: NewTaskData) => { /* no-op */ }
 
   const handleTodayToggle = async (task: Task) => {
@@ -300,7 +292,6 @@ export default function TodayPage() {
         {/* Body */}
         <div className="flex-1 overflow-auto p-4 md:p-6">
           {totalToday === 0 ? (
-            // Empty state
             <div className="flex flex-col items-center justify-center h-full gap-3">
               <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
                 Nothing due or marked for today.
@@ -323,7 +314,6 @@ export default function TodayPage() {
                       onEdit={() => { setEditingTask(task); setModalOpen(true) }}
                       onComplete={() => handleComplete(task)}
                       onUnstar={() => handleTodayToggle(task)}
-                      // auto-added means it's here only because of deadline, not manually starred
                       isAutoAdded={!task.today_flag}
                     />
                   ))}
@@ -333,9 +323,7 @@ export default function TodayPage() {
               {/* Completed today section */}
               {doneTodayTasks.length > 0 && (
                 <div>
-                  <div
-                    className="flex items-center gap-3 mb-3"
-                  >
+                  <div className="flex items-center gap-3 mb-3">
                     <span
                       className="font-mono text-xs uppercase tracking-widest"
                       style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
@@ -372,6 +360,7 @@ export default function TodayPage() {
         task={editingTask}
         projects={projects}
         allTasks={tasks}
+        canWrite={true}
         onSave={handleTaskSave}
         onDelete={handleTaskDelete}
         onCreate={handleTaskCreate}
@@ -399,10 +388,10 @@ interface TodayTaskRowProps {
 }
 
 function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar, isAutoAdded }: TodayTaskRowProps) {
-  const pColor    = priorityColors[task.priority] ?? 'var(--text3)'
-  const abbr      = categoryAbbr[task.category] ?? task.category?.slice(0, 3).toUpperCase() ?? '—'
-  const streak    = task.current_streak ?? 0
-  const warm      = task.is_recurring && isWarmStreak(streak)
+  const pColor = priorityColors[task.priority] ?? 'var(--text3)'
+  const abbr   = categoryAbbr[task.category] ?? task.category?.slice(0, 3).toUpperCase() ?? '—'
+  const streak = task.current_streak ?? 0
+  const warm   = task.is_recurring && isWarmStreak(streak)
 
   return (
     <div
@@ -423,15 +412,10 @@ function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar, isAutoAdded
       {/* Main content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap mb-0.5">
-          {/* Category abbreviation */}
-          <span
-            className="font-mono text-xs"
-            style={{ color: 'var(--text3)' }}
-          >
+          <span className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
             {abbr}
           </span>
 
-          {/* Project pill */}
           {project && (
             <span
               className="font-syne text-xs px-1.5 py-0.5 rounded-full"
@@ -441,7 +425,6 @@ function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar, isAutoAdded
             </span>
           )}
 
-          {/* Recurring badge */}
           {task.is_recurring && (
             <span
               className="flex items-center gap-1 font-mono text-xs"
@@ -452,13 +435,12 @@ function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar, isAutoAdded
             </span>
           )}
 
-          {/* Momentum badge */}
           {task.is_recurring && streak > 0 && (
             <span
               className="flex items-center gap-1 font-mono text-xs px-1.5 py-0.5 rounded-full"
               style={{
-                color:      warm ? '#080909'     : 'var(--text3)',
-                background: warm ? 'var(--amber)' : 'var(--bg4)',
+                color:      warm ? '#080909'      : 'var(--text3)',
+                background: warm ? 'var(--amber)'  : 'var(--bg4)',
               }}
             >
               {warm && <Flame size={9} strokeWidth={2} />}
@@ -466,13 +448,12 @@ function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar, isAutoAdded
             </span>
           )}
 
-          {/* Deadline badge — shown when auto-added by deadline (not manually starred) */}
           {isAutoAdded && (
             <span
               className="font-mono text-xs px-1.5 py-0.5 rounded-full"
               style={{
-                color:      'var(--col-high)',
-                background: 'rgba(248,113,113,0.12)',
+                color:         'var(--col-high)',
+                background:    'rgba(248,113,113,0.12)',
                 letterSpacing: '0.04em',
               }}
             >
@@ -489,7 +470,7 @@ function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar, isAutoAdded
         </p>
       </div>
 
-      {/* Unstar button — only shown for manually starred tasks, not deadline-auto tasks */}
+      {/* Unstar button — only for manually starred tasks */}
       {!isAutoAdded && (
         <button
           onClick={(e) => { e.stopPropagation(); onUnstar() }}
@@ -501,14 +482,13 @@ function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar, isAutoAdded
         </button>
       )}
 
-      {/* Complete button — hollow circle with green border and tick for not-done tasks */}
+      {/* Complete button */}
       <button
         onClick={(e) => { e.stopPropagation(); onComplete() }}
         className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150"
         style={{
           background: 'transparent',
           border:     task.is_recurring ? '2px solid var(--amber)' : '2px solid var(--teal)',
-          boxShadow:  'none',
         }}
         title={task.is_recurring ? 'Complete this cycle' : 'Mark complete'}
       >
@@ -544,7 +524,6 @@ function TodayDoneRow({ task, project, onEdit }: TodayDoneRowProps) {
       onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
       onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.65')}
     >
-      {/* Done check */}
       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--col-done)' }} />
 
       <div className="flex-1 min-w-0">
@@ -565,7 +544,6 @@ function TodayDoneRow({ task, project, onEdit }: TodayDoneRowProps) {
         >
           {task.title}
         </p>
-        {/* Show Traces note if logged */}
         {task.completion_note && (
           <p
             className="font-syne text-xs italic mt-0.5 truncate"
