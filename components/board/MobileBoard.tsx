@@ -8,6 +8,7 @@ import { Plus } from 'lucide-react'
 interface MobileBoardProps {
   tasks: Task[]
   projects: Project[]
+  canWrite: boolean
   onCardClick: (task: Task) => void
   onComplete: (task: Task) => void
   onUndoDone: (task: Task) => void
@@ -27,7 +28,6 @@ const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 }
 
 function sortTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
-    // 1. Due date: nearest first, nulls last
     const aDate = a.next_due_date ?? a.due_date
     const bDate = b.next_due_date ?? b.due_date
     if (aDate && bDate) {
@@ -35,14 +35,12 @@ function sortTasks(tasks: Task[]): Task[] {
       if (diff !== 0) return diff
     } else if (aDate) return -1
     else if (bDate) return 1
-
-    // 2. Priority: High → Medium → Low
     return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
   })
 }
 
 export function MobileBoard({
-  tasks, projects,
+  tasks, projects, canWrite,
   onCardClick, onComplete, onUndoDone, onTodayToggle, onStatusChange, onAddTask,
 }: MobileBoardProps) {
   const [activeStatus, setActiveStatus] = useState<Status>('Todo')
@@ -53,6 +51,7 @@ export function MobileBoard({
   const col = sortTasks(tasks.filter((t) => t.status === activeStatus))
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (!canWrite) return
     const touch = e.touches[0]
     if (!touch) return
     touchStartX.current = touch.clientX
@@ -60,6 +59,7 @@ export function MobileBoard({
   }
 
   const handleTouchMove = (e: React.TouchEvent, taskId: string) => {
+    if (!canWrite) return
     const touch = e.touches[0]
     if (!touch) return
     const dx = touch.clientX - touchStartX.current
@@ -71,12 +71,16 @@ export function MobileBoard({
   }
 
   const handleTouchEnd = (taskId: string) => {
+    if (!canWrite) {
+      setSwipeState(null)
+      return
+    }
     const dist = swipeState?.distance ?? 0
     if (Math.abs(dist) > 72) {
       const task = tasks.find((t) => t.id === taskId)
       if (task) {
         if (dist > 0) {
-          if (activeStatus === 'Todo')        onStatusChange(taskId, 'In Progress')
+          if (activeStatus === 'Todo')            onStatusChange(taskId, 'In Progress')
           else if (activeStatus === 'In Progress') onComplete(task)
         } else {
           if (activeStatus === 'In Progress') onStatusChange(taskId, 'Todo')
@@ -119,29 +123,42 @@ export function MobileBoard({
       {/* Cards */}
       <div className="space-y-2.5 pb-28 px-1">
         {col.length === 0 ? (
-          <button
-            onClick={() => onAddTask(activeStatus)}
-            className="w-full flex flex-col items-center justify-center h-36 rounded-xl gap-2 transition-all duration-150"
-            style={{ border: '1.5px dashed var(--border2)' }}
-          >
-            <Plus size={18} style={{ color: 'var(--text3)' }} />
-            <span className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
-              Add task
-            </span>
-          </button>
-        ) : (
-          <>
-            {/* Add task — top of list */}
+          canWrite ? (
             <button
               onClick={() => onAddTask(activeStatus)}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all duration-150"
-              style={{ border: '1px dashed var(--border2)', color: 'var(--text3)' }}
-              onTouchStart={(e) => e.currentTarget.style.color = 'var(--amber)'}
-              onTouchEnd={(e) => e.currentTarget.style.color = 'var(--text3)'}
+              className="w-full flex flex-col items-center justify-center h-36 rounded-xl gap-2 transition-all duration-150"
+              style={{ border: '1.5px dashed var(--border2)' }}
             >
-              <Plus size={14} />
-              <span className="font-mono text-xs">Add task</span>
+              <Plus size={18} style={{ color: 'var(--text3)' }} />
+              <span className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
+                Add task
+              </span>
             </button>
+          ) : (
+            <div
+              className="w-full flex flex-col items-center justify-center h-36 rounded-xl gap-2"
+              style={{ border: '1.5px dashed var(--border2)' }}
+            >
+              <span className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
+                No tasks
+              </span>
+            </div>
+          )
+        ) : (
+          <>
+            {/* Add task — top of list — hidden for viewers */}
+            {canWrite && (
+              <button
+                onClick={() => onAddTask(activeStatus)}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all duration-150"
+                style={{ border: '1px dashed var(--border2)', color: 'var(--text3)' }}
+                onTouchStart={(e) => e.currentTarget.style.color = 'var(--amber)'}
+                onTouchEnd={(e) => e.currentTarget.style.color = 'var(--text3)'}
+              >
+                <Plus size={14} />
+                <span className="font-mono text-xs">Add task</span>
+              </button>
+            )}
 
             {col.map((task) => {
               const swiping    = swipeState?.taskId === task.id
@@ -156,11 +173,11 @@ export function MobileBoard({
                 <div
                   key={task.id}
                   className="relative overflow-hidden rounded-xl"
-                  onTouchStart={handleTouchStart}
-                  onTouchMove={(e) => handleTouchMove(e, task.id)}
-                  onTouchEnd={() => handleTouchEnd(task.id)}
+                  onTouchStart={canWrite ? handleTouchStart : undefined}
+                  onTouchMove={canWrite ? (e) => handleTouchMove(e, task.id) : undefined}
+                  onTouchEnd={canWrite ? () => handleTouchEnd(task.id) : undefined}
                 >
-                  {Math.abs(dist) > 6 && (
+                  {canWrite && Math.abs(dist) > 6 && (
                     <div
                       className="absolute inset-0 flex items-center justify-center rounded-xl z-0"
                       style={{ background: hintColor, opacity: pct * 0.7 }}
@@ -169,7 +186,7 @@ export function MobileBoard({
                   <div
                     className="relative z-10"
                     style={{
-                      transform:  `translateX(${dist}px)`,
+                      transform:  canWrite ? `translateX(${dist}px)` : 'none',
                       transition: swiping ? 'none' : 'transform 200ms ease',
                     }}
                   >

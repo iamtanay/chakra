@@ -90,12 +90,22 @@ export type Status = 'Todo' | 'In Progress' | 'Done'
 
 export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'annual'
 
+export type MemberRole = 'viewer' | 'editor'
+
 export interface Project {
   id: string
   name: string
   color: string
   type: ProjectType
   created_at: string
+  owner_id: string
+}
+
+export interface ProjectMember {
+  project_id: string
+  user_id: string
+  role: MemberRole
+  shared_at: string
 }
 
 export interface Task {
@@ -123,12 +133,9 @@ export interface Task {
   next_due_date: string | null
 
   // ── Momentum: consecutive on-time cycle counter ───────────────────────────
-  // Non-recurring tasks always have 0. Incremented in advanceRecurringCycle
-  // when completed on or before next_due_date; reset to 0 when overdue.
   current_streak: number
 
   // ── Traces: optional completion note ─────────────────────────────────────
-  // Set in CompleteModal; reset to null on each recurring cycle advance.
   completion_note: string | null
 }
 

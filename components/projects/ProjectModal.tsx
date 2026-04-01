@@ -17,6 +17,10 @@ interface ProjectModalProps {
   onSave: (project: Project) => void
   onDelete: (projectId: string) => void
   canDelete: boolean
+  /** True if the current user owns this project */
+  isOwner: boolean
+  /** True if the current user can edit (owner or editor) */
+  canEdit: boolean
   // Recurring task props — only relevant when editing an existing project
   recurringTasks?: Task[]
   onEditRecurringTask?: (task: Task) => void
@@ -50,11 +54,12 @@ function formatDate(iso: string): string {
 
 interface RecurringRowProps {
   task: Task
+  canEdit: boolean
   onEdit: (task: Task) => void
   onDelete: (taskId: string) => void
 }
 
-function RecurringRow({ task, onEdit, onDelete }: RecurringRowProps) {
+function RecurringRow({ task, canEdit, onEdit, onDelete }: RecurringRowProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const handleDelete = () => {
@@ -65,7 +70,6 @@ function RecurringRow({ task, onEdit, onDelete }: RecurringRowProps) {
     }
   }
 
-  // Reset confirm state if task changes (e.g. list re-renders)
   useEffect(() => { setConfirmDelete(false) }, [task.id])
 
   const nextDue = task.next_due_date ? formatDate(task.next_due_date) : null
@@ -105,50 +109,52 @@ function RecurringRow({ task, onEdit, onDelete }: RecurringRowProps) {
         </div>
       </div>
 
-      {/* Right: actions */}
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        {confirmDelete ? (
-          <>
-            <button
-              onClick={handleDelete}
-              className="px-2.5 py-1.5 rounded-lg font-mono text-xs font-600 transition-all duration-150"
-              style={{ background: 'var(--rose)', color: '#0a0a0a' }}
-            >
-              Confirm
-            </button>
-            <button
-              onClick={() => setConfirmDelete(false)}
-              className="px-2.5 py-1.5 rounded-lg font-mono text-xs transition-all duration-150"
-              style={{ background: 'var(--bg5)', color: 'var(--text3)', border: '1px solid var(--border)' }}
-            >
-              Cancel
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={() => onEdit(task)}
-              className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150"
-              style={{ background: 'var(--bg5)', color: 'var(--text3)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--amber)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text3)' }}
-              title="Edit recurring task"
-            >
-              <Pencil size={12} />
-            </button>
-            <button
-              onClick={handleDelete}
-              className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150"
-              style={{ background: 'var(--bg5)', color: 'var(--text3)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--col-high)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text3)' }}
-              title="Delete recurring task"
-            >
-              <Trash2 size={12} />
-            </button>
-          </>
-        )}
-      </div>
+      {/* Right: actions — only for editors/owners */}
+      {canEdit && (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {confirmDelete ? (
+            <>
+              <button
+                onClick={handleDelete}
+                className="px-2.5 py-1.5 rounded-lg font-mono text-xs font-600 transition-all duration-150"
+                style={{ background: 'var(--rose)', color: '#0a0a0a' }}
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-2.5 py-1.5 rounded-lg font-mono text-xs transition-all duration-150"
+                style={{ background: 'var(--bg5)', color: 'var(--text3)', border: '1px solid var(--border)' }}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => onEdit(task)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150"
+                style={{ background: 'var(--bg5)', color: 'var(--text3)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--amber)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text3)' }}
+                title="Edit recurring task"
+              >
+                <Pencil size={12} />
+              </button>
+              <button
+                onClick={handleDelete}
+                className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150"
+                style={{ background: 'var(--bg5)', color: 'var(--text3)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--col-high)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text3)' }}
+                title="Delete recurring task"
+              >
+                <Trash2 size={12} />
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -157,6 +163,7 @@ function RecurringRow({ task, onEdit, onDelete }: RecurringRowProps) {
 
 export function ProjectModal({
   isOpen, onClose, project, onSave, onDelete, canDelete,
+  isOwner, canEdit,
   recurringTasks = [],
   onEditRecurringTask,
   onDeleteRecurringTask,
@@ -173,29 +180,112 @@ export function ProjectModal({
     if (project) { setName(project.name); setType(project.type); setColor(project.color) }
     else         { setName(''); setType('Work'); setColor('#e8a247') }
     setDeleteConfirm(false)
-    // Don't auto-expand — let the user open it deliberately
     setRecurringOpen(false)
   }, [project, isOpen])
 
   const handleSave = () => {
-    if (!name.trim()) return
+    if (!name.trim() || !canEdit) return
     onSave({
-      id: project?.id || '',
-      name: name.trim(),
+      id:         project?.id || '',
+      name:       name.trim(),
       type,
       color,
       created_at: project?.created_at || new Date().toISOString(),
+      owner_id:   project?.owner_id   || '',
     })
     onClose()
   }
 
   const handleDelete = () => {
-    if (deleteConfirm && project) { onDelete(project.id); setDeleteConfirm(false); onClose() }
+    if (!isOwner || !project) return
+    if (deleteConfirm) { onDelete(project.id); setDeleteConfirm(false); onClose() }
     else setDeleteConfirm(true)
   }
 
   const hasRecurring = recurringTasks.length > 0
 
+  // ── Viewer mode: read-only display ─────────────────────────────────────────
+  if (project && !canEdit) {
+    const viewerContent = (
+      <div className="space-y-5">
+        <div
+          className="px-4 py-3 rounded-xl"
+          style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}
+        >
+          <p className="font-mono text-xs uppercase tracking-widest mb-1"
+             style={{ color: 'var(--text3)' }}>Project</p>
+          <p className="font-syne font-700 text-base" style={{ color: 'var(--text)' }}>{project.name}</p>
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1 px-4 py-3 rounded-xl" style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}>
+            <p className="font-mono text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--text3)' }}>Type</p>
+            <p className="font-syne text-sm" style={{ color: 'var(--text)' }}>{project.type}</p>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-3 rounded-xl" style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}>
+            <div className="w-5 h-5 rounded-md" style={{ background: project.color }} />
+          </div>
+        </div>
+
+        {/* Recurring tasks — read-only */}
+        {hasRecurring && (
+          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+            <button
+              onClick={() => setRecurringOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 transition-all duration-150"
+              style={{
+                background:   recurringOpen ? 'var(--bg4)' : 'var(--bg3)',
+                borderBottom: recurringOpen ? '1px solid var(--border)' : 'none',
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <RefreshCw size={13} style={{ color: 'var(--amber)' }} strokeWidth={2.5} />
+                <span className="font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--amber)', letterSpacing: '0.1em' }}>
+                  Recurring tasks
+                </span>
+                <span className="font-mono text-xs w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{ background: 'rgba(232,162,71,0.15)', color: 'var(--amber)' }}>
+                  {recurringTasks.length}
+                </span>
+              </div>
+              {recurringOpen
+                ? <ChevronUp  size={14} style={{ color: 'var(--text3)' }} />
+                : <ChevronDown size={14} style={{ color: 'var(--text3)' }} />}
+            </button>
+            {recurringOpen && (
+              <div className="p-3 space-y-2" style={{ background: 'var(--bg3)' }}>
+                {recurringTasks.map((task) => (
+                  <RecurringRow
+                    key={task.id}
+                    task={task}
+                    canEdit={false}
+                    onEdit={() => {}}
+                    onDelete={() => {}}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <p className="font-mono text-xs text-center" style={{ color: 'var(--text3)' }}>
+          You have view-only access to this project.
+        </p>
+        <button
+          onClick={onClose}
+          className="w-full py-3 rounded-xl font-syne font-600 text-sm"
+          style={{ background: 'var(--bg4)', color: 'var(--text2)', border: '1px solid var(--border)' }}
+        >
+          Close
+        </button>
+      </div>
+    )
+
+    const title = project.name
+    if (isMobile) return <BottomSheet isOpen={isOpen} onClose={onClose} title={title}>{viewerContent}</BottomSheet>
+    return <Modal isOpen={isOpen} onClose={onClose} title={title}>{viewerContent}</Modal>
+  }
+
+  // ── Editor / Owner mode ────────────────────────────────────────────────────
   const content = (
     <div className="space-y-5">
       <Input
@@ -229,13 +319,9 @@ export function ProjectModal({
         </div>
       </div>
 
-      {/* ── Recurring tasks section — only shown when editing an existing project ── */}
+      {/* Recurring tasks — only shown when editing an existing project */}
       {project && (
-        <div
-          className="rounded-xl overflow-hidden"
-          style={{ border: '1px solid var(--border)' }}
-        >
-          {/* Collapsible header */}
+        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
           <button
             onClick={() => setRecurringOpen((v) => !v)}
             className="w-full flex items-center justify-between px-4 py-3 transition-all duration-150"
@@ -270,11 +356,9 @@ export function ProjectModal({
             </div>
             {recurringOpen
               ? <ChevronUp  size={14} style={{ color: 'var(--text3)' }} />
-              : <ChevronDown size={14} style={{ color: 'var(--text3)' }} />
-            }
+              : <ChevronDown size={14} style={{ color: 'var(--text3)' }} />}
           </button>
 
-          {/* Expandable body */}
           {recurringOpen && (
             <div className="p-3 space-y-2" style={{ background: 'var(--bg3)' }}>
               {hasRecurring ? (
@@ -282,6 +366,7 @@ export function ProjectModal({
                   <RecurringRow
                     key={task.id}
                     task={task}
+                    canEdit={canEdit}
                     onEdit={onEditRecurringTask ?? (() => {})}
                     onDelete={onDeleteRecurringTask ?? (() => {})}
                   />
@@ -298,7 +383,7 @@ export function ProjectModal({
         </div>
       )}
 
-      {/* ── Project actions ── */}
+      {/* Actions */}
       <div className="flex gap-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
         <button
           onClick={handleSave}
@@ -307,7 +392,8 @@ export function ProjectModal({
         >
           Save
         </button>
-        {project && (
+        {/* Delete — owner only, shown when editing */}
+        {project && isOwner && (
           <button
             onClick={handleDelete}
             disabled={!canDelete && !deleteConfirm}
@@ -324,7 +410,7 @@ export function ProjectModal({
         )}
       </div>
 
-      {project && !canDelete && !deleteConfirm && (
+      {project && isOwner && !canDelete && !deleteConfirm && (
         <p className="font-mono text-xs text-center" style={{ color: 'var(--text3)' }}>
           Move or delete tasks first.
         </p>

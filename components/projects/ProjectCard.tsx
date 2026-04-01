@@ -1,14 +1,16 @@
 'use client'
 
 import type { Project } from '@/types'
-import { Pencil } from 'lucide-react'
+import { Pencil, Share2, Users } from 'lucide-react'
 import { useState } from 'react'
 
 interface ProjectCardProps {
   project: Project
   taskCount: number
   completedCount: number
+  isOwner: boolean
   onEdit: (project: Project) => void
+  onShare: (project: Project) => void
 }
 
 const typeColors: Record<string, string> = {
@@ -17,9 +19,11 @@ const typeColors: Record<string, string> = {
   Personal: 'var(--teal)',
 }
 
-export function ProjectCard({ project, taskCount, completedCount, onEdit }: ProjectCardProps) {
+export function ProjectCard({
+  project, taskCount, completedCount, isOwner, onEdit, onShare,
+}: ProjectCardProps) {
   const [hovered, setHovered] = useState(false)
-  const pct = taskCount > 0 ? (completedCount / taskCount) * 100 : 0
+  const pct    = taskCount > 0 ? (completedCount / taskCount) * 100 : 0
   const tColor = typeColors[project.type] ?? 'var(--text3)'
 
   return (
@@ -60,9 +64,25 @@ export function ProjectCard({ project, taskCount, completedCount, onEdit }: Proj
               </span>
             </div>
             <div>
-              <h3 className="font-syne font-700 text-sm" style={{ color: 'var(--text)' }}>
-                {project.name}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-syne font-700 text-sm" style={{ color: 'var(--text)' }}>
+                  {project.name}
+                </h3>
+                {/* "Shared" badge — visible to non-owners */}
+                {!isOwner && (
+                  <span
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono text-xs"
+                    style={{
+                      background: 'rgba(96,165,250,0.1)',
+                      color:      'var(--violet)',
+                      border:     '1px solid rgba(96,165,250,0.2)',
+                    }}
+                  >
+                    <Users size={9} />
+                    Shared
+                  </span>
+                )}
+              </div>
               <span
                 className="font-mono text-xs"
                 style={{ color: tColor }}
@@ -72,19 +92,44 @@ export function ProjectCard({ project, taskCount, completedCount, onEdit }: Proj
             </div>
           </div>
 
-          {/* Edit button — visible on hover */}
-          <button
-            onClick={() => onEdit(project)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150"
-            style={{
-              background:  hovered ? 'var(--bg5)' : 'transparent',
-              color:       'var(--text3)',
-              opacity:     hovered ? 1 : 0,
-              transform:   hovered ? 'scale(1)' : 'scale(0.8)',
-            }}
+          {/* Action buttons — visible on hover */}
+          <div
+            className="flex items-center gap-1 transition-all duration-150"
+            style={{ opacity: hovered ? 1 : 0 }}
           >
-            <Pencil size={13} />
-          </button>
+            {/* Share button — owner only */}
+            {isOwner && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onShare(project) }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150"
+                style={{
+                  background: hovered ? 'var(--bg5)' : 'transparent',
+                  color:      'var(--text3)',
+                  transform:  hovered ? 'scale(1)' : 'scale(0.8)',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--violet)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text3)' }}
+                title="Share project"
+              >
+                <Share2 size={13} />
+              </button>
+            )}
+
+            {/* Edit/pencil button — owner and editor; hidden for viewers (isOwner=false means shared;
+                the parent page passes isOwner=true for editors too for this button — see page logic) */}
+            <button
+              onClick={() => onEdit(project)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150"
+              style={{
+                background: hovered ? 'var(--bg5)' : 'transparent',
+                color:      'var(--text3)',
+                transform:  hovered ? 'scale(1)' : 'scale(0.8)',
+              }}
+              title="Edit project"
+            >
+              <Pencil size={13} />
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -108,9 +153,9 @@ export function ProjectCard({ project, taskCount, completedCount, onEdit }: Proj
           <div
             className="h-full rounded-full transition-all duration-500"
             style={{
-              width:      `${pct}%`,
+              width:     `${pct}%`,
               background: project.color,
-              boxShadow:  `0 0 8px ${project.color}60`,
+              boxShadow: `0 0 8px ${project.color}60`,
             }}
           />
         </div>

@@ -13,7 +13,7 @@ import { Logo } from '@/components/ui/Logo'
 import { ProjectSwitcher } from '@/components/ui/ProjectSwitcher'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { Plus } from 'lucide-react'
-import type { Task, Project, Status } from '@/types'
+import type { Task, Project, Status, ProjectMember } from '@/types'
 import {
   shouldShowRecurringTask,
   advanceRecurringCycle,
@@ -30,6 +30,8 @@ export default function BoardPage() {
 
   const [tasks,             setTasks]             = useState<Task[]>([])
   const [projects,          setProjects]          = useState<Project[]>([])
+  const [members,           setMembers]           = useState<ProjectMember[]>([])
+  const [currentUserId,     setCurrentUserId]     = useState<string | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [loading,           setLoading]           = useState(true)
 
@@ -48,20 +50,88 @@ export default function BoardPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [{ data: pd, error: pe }, { data: td, error: te }] = await Promise.all([
+      const supabase = createClient()
+
+      // Local cache hit — no network round trip
+      const { data: { user } } = await supabase.auth.getUser()
+      setCurrentUserId(user?.id ?? null)
+
+      const [
+        { data: pd, error: pe },
+        { data: td, error: te },
+        { data: md },
+      ] = await Promise.all([
         db('projects').select('*'),
         db('tasks').select('*'),
+        db('project_members').select('*'),
       ])
+
       if (pe) throw pe
       if (te) throw te
+
       setProjects((pd || []) as Project[])
       setTasks((td || []) as Task[])
+      setMembers((md || []) as ProjectMember[])
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => { loadData() }, [])
+
+  // ── Permission helpers ──────────────────────────────────────────────────────
+
+  /** True if current user owns the given project. */
+  const isOwnerOf = (project: Project): boolean =>
+    !!currentUserId && project.owner_id === currentUserId
+
+  /**
+   * True if current user can write to the given project.
+   * Owners always can; members with role='editor' can too.
+   */
+  const canWriteToProject = (project: Project): boolean => {
+    if (isOwnerOf(project)) return true
+    if (!currentUserId) return false
+    return members.some(
+      (m) => m.project_id === project.id && m.user_id === currentUserId && m.role === 'editor'
+    )
+  }
+
+  /**
+   * Derived canWrite for the currently selected view:
+   * - No project selected ("All Projects"): true — RLS already filters out
+   *   viewer-only projects from task writes server-side. We show all tasks
+   *   but the individual task modal will reflect correct permissions per task.
+   *   We return true here so the Add Task button is visible; RLS is the
+   *   safety net for the write.
+   * - Specific project selected: check that project's permissions.
+   */
+  const canWrite = useMemo(() => {
+    if (!selectedProjectId) {
+      // "All Projects" — check if there's at least one project the user can write to.
+      // We show the global Add Task button only if they can write somewhere.
+      return projects.some((p) => canWriteToProject(p))
+    }
+    const selected = projects.find((p) => p.id === selectedProjectId)
+    if (!selected) return false
+    return canWriteToProject(selected)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId, projects, members, currentUserId])
+
+  /**
+   * When a task is open in the modal, its canWrite depends on which project
+   * it belongs to, not the current filter selection.
+   */
+  const taskModalCanWrite = useMemo(() => {
+    if (editingTask) {
+      const project = projects.find((p) => p.id === editingTask.project_id)
+      if (!project) return false
+      return canWriteToProject(project)
+    }
+    // Creating a new task — canWrite is based on selected project context
+    return canWrite
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingTask, projects, members, currentUserId, canWrite])
 
   // Filtered tasks for board display
   const filteredTasks = useMemo(() => {
@@ -78,6 +148,7 @@ export default function BoardPage() {
   // ── Modal helpers ──────────────────────────────────────────────────────────
 
   const openCreateModal = (status: Status = 'Todo') => {
+    if (!canWrite) return
     setEditingTask(null)
     setDefaultStatus(status)
     setModalOpen(true)
@@ -96,6 +167,7 @@ export default function BoardPage() {
   // ── CRUD handlers ──────────────────────────────────────────────────────────
 
   const handleTaskCreate = async (data: NewTaskData) => {
+    if (!currentUserId) return
     try {
       setLogoSpin('loop')
 
@@ -154,7 +226,6 @@ export default function BoardPage() {
     try {
       setLogoSpin('loop')
       setTasks((prev) => prev.map((t) => t.id === updatedTask.id ? updatedTask : t))
-      // Exclude fields that are only set on completion
       const { actual_hours, completed_at, completion_note, ...updateData } = updatedTask
       await db('tasks').update(updateData).eq('id', updatedTask.id)
       setLogoSpin(null)
@@ -180,7 +251,12 @@ export default function BoardPage() {
 
   const handleStatusChange = async (taskId: string, newStatus: Status) => {
     const task = tasks.find((t) => t.id === taskId)
-    if (task?.is_recurring && newStatus === 'Done') return
+    if (!task) return
+    // Block status drag to Done for recurring tasks (must go through CompleteModal)
+    if (task.is_recurring && newStatus === 'Done') return
+    // Block if viewer
+    const project = projects.find((p) => p.id === task.project_id)
+    if (project && !canWriteToProject(project)) return
 
     try {
       setLogoSpin('loop')
@@ -198,14 +274,18 @@ export default function BoardPage() {
     }
   }
 
-  const handleTaskComplete = (task: Task) => setCompletingTask(task)
+  const handleTaskComplete = (task: Task) => {
+    // Guard: only writers can complete tasks
+    const project = projects.find((p) => p.id === task.project_id)
+    if (project && !canWriteToProject(project)) return
+    setCompletingTask(task)
+  }
 
-  /**
-   * Undo a completed task — moves it back to 'Todo' and clears completion data.
-   * Only applies to non-recurring Done tasks (recurring tasks don't stay in Done).
-   */
   const handleUndoDone = async (task: Task) => {
-    if (task.is_recurring) return // recurring tasks manage their own state via cycles
+    if (task.is_recurring) return
+    const project = projects.find((p) => p.id === task.project_id)
+    if (project && !canWriteToProject(project)) return
+
     try {
       setLogoSpin('loop')
       setTasks((prev) =>
@@ -235,7 +315,6 @@ export default function BoardPage() {
       setLogoSpin('loop')
 
       if (task.is_recurring) {
-        // Recurring: advance cycle (streak logic lives in advanceRecurringCycle)
         const advanced = advanceRecurringCycle(task)
         const dbUpdate = {
           status:               advanced.status,
@@ -245,12 +324,11 @@ export default function BoardPage() {
           last_completed_cycle: advanced.last_completed_cycle,
           next_due_date:        advanced.next_due_date,
           current_streak:       advanced.current_streak,
-          completion_note:      null,   // reset per cycle
+          completion_note:      null,
         }
         setTasks((prev) => prev.map((t) => t.id === task.id ? advanced : t))
         await db('tasks').update(dbUpdate).eq('id', task.id)
       } else {
-        // One-off: mark permanently Done, save hours + Traces note
         const now = new Date().toISOString()
         const updated: Task = {
           ...task,
@@ -280,6 +358,9 @@ export default function BoardPage() {
   }
 
   const handleTodayToggle = async (task: Task) => {
+    const project = projects.find((p) => p.id === task.project_id)
+    if (project && !canWriteToProject(project)) return
+
     try {
       setTasks((prev) =>
         prev.map((t) => t.id === task.id ? { ...t, today_flag: !t.today_flag } : t)
@@ -354,14 +435,17 @@ export default function BoardPage() {
                   onProjectSelect={setSelectedProjectId}
                 />
               </div>
-              <button
-                onClick={() => openCreateModal('Todo')}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl font-syne font-600 text-sm transition-all duration-150"
-                style={{ background: 'var(--amber)', color: '#0a0a0a' }}
-              >
-                <Plus size={15} strokeWidth={2.5} />
-                <span>Add task</span>
-              </button>
+              {/* Add task button — only shown when user can write */}
+              {canWrite && (
+                <button
+                  onClick={() => openCreateModal('Todo')}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-syne font-600 text-sm transition-all duration-150"
+                  style={{ background: 'var(--amber)', color: '#0a0a0a' }}
+                >
+                  <Plus size={15} strokeWidth={2.5} />
+                  <span>Add task</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -386,6 +470,7 @@ export default function BoardPage() {
             <MobileBoard
               tasks={filteredTasks}
               projects={projects}
+              canWrite={canWrite}
               onCardClick={openEditModal}
               onComplete={handleTaskComplete}
               onUndoDone={handleUndoDone}
@@ -397,6 +482,7 @@ export default function BoardPage() {
             <KanbanBoard
               tasks={filteredTasks}
               projects={projects}
+              canWrite={canWrite}
               onCardClick={openEditModal}
               onComplete={handleTaskComplete}
               onUndoDone={handleUndoDone}
@@ -416,6 +502,7 @@ export default function BoardPage() {
         task={editingTask}
         projects={projects}
         allTasks={tasks}
+        canWrite={taskModalCanWrite}
         defaultProjectId={selectedProjectId ?? undefined}
         defaultStatus={defaultStatus}
         onSave={handleTaskSave}

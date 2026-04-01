@@ -6,10 +6,11 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { ProjectModal } from '@/components/projects/ProjectModal'
+import { ShareModal } from '@/components/projects/ShareModal'
 import { TaskModal } from '@/components/modals/TaskModal'
 import { Logo } from '@/components/ui/Logo'
 import { Plus } from 'lucide-react'
-import type { Project, Task } from '@/types'
+import type { Project, Task, ProjectMember } from '@/types'
 import type { NewTaskData } from '@/components/modals/TaskModal'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,9 +19,12 @@ const db = (table: string) => (createClient() as any).from(table)
 export default function ProjectsPage() {
   const [projects,       setProjects]       = useState<Project[]>([])
   const [tasks,          setTasks]          = useState<Task[]>([])
+  const [members,        setMembers]        = useState<ProjectMember[]>([])
+  const [currentUserId,  setCurrentUserId]  = useState<string | null>(null)
   const [loading,        setLoading]        = useState(true)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [showModal,      setShowModal]      = useState(false)
+  const [sharingProject, setSharingProject] = useState<Project | null>(null)
   const [logoSpin,       setLogoSpin]       = useState<'once' | 'fast' | 'loop' | null>('once')
 
   const [editingTask,   setEditingTask]   = useState<Task | null>(null)
@@ -33,16 +37,53 @@ export default function ProjectsPage() {
 
   const loadData = async () => {
     setLoading(true)
-    const [{ data: pd }, { data: td }] = await Promise.all([
-      db('projects').select('*'),
-      db('tasks').select('*'),
-    ])
-    setProjects((pd || []) as Project[])
-    setTasks((td || []) as Task[])
-    setLoading(false)
+    try {
+      const supabase = createClient()
+
+      // Get current user — local cache hit, no network round trip
+      const { data: { user } } = await supabase.auth.getUser()
+      const uid = user?.id ?? null
+      setCurrentUserId(uid)
+
+      const [
+        { data: pd },
+        { data: td },
+        { data: md },
+      ] = await Promise.all([
+        db('projects').select('*'),
+        db('tasks').select('*'),
+        // Fetch all project_members rows visible to this user
+        // (RLS returns: own rows + all rows for projects you own)
+        db('project_members').select('*'),
+      ])
+
+      setProjects((pd || []) as Project[])
+      setTasks((td || []) as Task[])
+      setMembers((md || []) as ProjectMember[])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { loadData() }, [])
+
+  // ── Permission helpers ──────────────────────────────────────────────────────
+
+  /** Returns true if the current user owns the given project. */
+  const isOwnerOf = (project: Project): boolean =>
+    !!currentUserId && project.owner_id === currentUserId
+
+  /**
+   * Returns true if the current user can edit (write) to the given project.
+   * True for owners, and for members with role='editor'.
+   */
+  const canEditProject = (project: Project): boolean => {
+    if (isOwnerOf(project)) return true
+    if (!currentUserId) return false
+    return members.some(
+      (m) => m.project_id === project.id && m.user_id === currentUserId && m.role === 'editor'
+    )
+  }
 
   const groupedProjects = useMemo(() => ({
     Work:     projects.filter((p) => p.type === 'Work'),
@@ -58,16 +99,24 @@ export default function ProjectsPage() {
   // ── Project CRUD ──────────────────────────────────────────────────────────
 
   const handleSave = async (project: Project) => {
+    if (!currentUserId) return
     try {
       setLogoSpin('loop')
       if (editingProject) {
+        // Editor/owner: only update allowed fields
         setProjects(projects.map((p) => p.id === project.id ? project : p))
         await db('projects')
           .update({ name: project.name, type: project.type, color: project.color })
           .eq('id', project.id)
       } else {
+        // New project — must include owner_id
         const { data } = await db('projects')
-          .insert([{ name: project.name, type: project.type, color: project.color }])
+          .insert([{
+            name:     project.name,
+            type:     project.type,
+            color:    project.color,
+            owner_id: currentUserId,
+          }])
           .select()
         setProjects([...projects, (data?.[0] as Project) || project])
       }
@@ -118,6 +167,15 @@ export default function ProjectsPage() {
     setEditingTask(null)
     if (editingProject) setShowModal(true)
   }
+
+  // canWrite for the task modal — based on which project the task belongs to
+  const taskModalCanWrite = useMemo(() => {
+    if (!editingTask) return false
+    const project = projects.find((p) => p.id === editingTask.project_id)
+    if (!project) return false
+    return canEditProject(project)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingTask, projects, members, currentUserId])
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -191,14 +249,22 @@ export default function ProjectsPage() {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {list.map((p) => {
-                          const s = getStats(p.id)
+                          const s      = getStats(p.id)
+                          const owner  = isOwnerOf(p)
+                          const editor = canEditProject(p)
                           return (
                             <ProjectCard
                               key={p.id}
                               project={p}
                               taskCount={s.total}
                               completedCount={s.completed}
-                              onEdit={(proj) => { setEditingProject(proj); setShowModal(true) }}
+                              isOwner={owner}
+                              onEdit={(proj) => {
+                                // Viewers can open the modal (read-only), editors/owners can edit
+                                setEditingProject(proj)
+                                setShowModal(true)
+                              }}
+                              onShare={(proj) => setSharingProject(proj)}
                             />
                           )
                         })}
@@ -214,24 +280,44 @@ export default function ProjectsPage() {
 
       <BottomNav />
 
+      {/* Project modal — create / edit */}
       <ProjectModal
         isOpen={showModal}
         onClose={() => { setShowModal(false); setEditingProject(null) }}
         project={editingProject}
         onSave={handleSave}
         onDelete={handleDelete}
-        canDelete={editingProject ? tasks.filter((t) => t.project_id === editingProject.id).length === 0 : true}
-        recurringTasks={editingProject ? tasks.filter((t) => t.project_id === editingProject.id && t.is_recurring) : []}
+        canDelete={
+          editingProject
+            ? tasks.filter((t) => t.project_id === editingProject.id).length === 0
+            : true
+        }
+        isOwner={editingProject ? isOwnerOf(editingProject) : true}
+        canEdit={editingProject ? canEditProject(editingProject) : true}
+        recurringTasks={
+          editingProject
+            ? tasks.filter((t) => t.project_id === editingProject.id && t.is_recurring)
+            : []
+        }
         onEditRecurringTask={handleEditRecurringTask}
         onDeleteRecurringTask={handleTaskDelete}
       />
 
+      {/* Share modal — owner only */}
+      <ShareModal
+        isOpen={sharingProject !== null}
+        onClose={() => setSharingProject(null)}
+        project={sharingProject}
+      />
+
+      {/* Task modal — for editing recurring tasks from within ProjectModal */}
       <TaskModal
         isOpen={taskModalOpen}
         onClose={closeTaskModal}
         task={editingTask}
         projects={projects}
         allTasks={tasks}
+        canWrite={taskModalCanWrite}
         onSave={handleTaskSave}
         onDelete={handleTaskDelete}
         onCreate={handleTaskCreate}

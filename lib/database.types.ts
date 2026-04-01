@@ -16,6 +16,7 @@ export type Database = {
           color: string
           type: 'Work' | 'Study' | 'Personal'
           created_at: string
+          owner_id: string
         }
         Insert: {
           id?: string
@@ -23,6 +24,7 @@ export type Database = {
           color: string
           type?: 'Work' | 'Study' | 'Personal'
           created_at?: string
+          owner_id: string
         }
         Update: {
           id?: string
@@ -30,8 +32,38 @@ export type Database = {
           color?: string
           type?: 'Work' | 'Study' | 'Personal'
           created_at?: string
+          owner_id?: string
         }
         Relationships: []
+      }
+      project_members: {
+        Row: {
+          project_id: string
+          user_id: string
+          role: 'viewer' | 'editor'
+          shared_at: string
+        }
+        Insert: {
+          project_id: string
+          user_id: string
+          role?: 'viewer' | 'editor'
+          shared_at?: string
+        }
+        Update: {
+          project_id?: string
+          user_id?: string
+          role?: 'viewer' | 'editor'
+          shared_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'project_members_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: false
+            referencedRelation: 'projects'
+            referencedColumns: ['id']
+          },
+        ]
       }
       tasks: {
         Row: {
@@ -77,6 +109,8 @@ export type Database = {
           recurrence_month: number | null
           last_completed_cycle: string | null
           next_due_date: string | null
+          current_streak: number
+          completion_note: string | null
         }
         Insert: {
           id?: string
@@ -121,6 +155,8 @@ export type Database = {
           recurrence_month?: number | null
           last_completed_cycle?: string | null
           next_due_date?: string | null
+          current_streak?: number
+          completion_note?: string | null
         }
         Update: {
           id?: string
@@ -165,6 +201,8 @@ export type Database = {
           recurrence_month?: number | null
           last_completed_cycle?: string | null
           next_due_date?: string | null
+          current_streak?: number
+          completion_note?: string | null
         }
         Relationships: [
           {
@@ -175,6 +213,39 @@ export type Database = {
             referencedColumns: ['id']
           },
         ]
+      }
+      push_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          user_agent: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          user_agent?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          endpoint?: string
+          p256dh?: string
+          auth?: string
+          user_agent?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {}

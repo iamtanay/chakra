@@ -20,10 +20,11 @@ interface TaskModalProps {
   onClose: () => void
   task: Task | null
   projects: Project[]
-  // All tasks — needed for Drift suggestions
   allTasks: Task[]
   defaultProjectId?: string
   defaultStatus?: Status
+  /** Whether the current user can create/edit/delete tasks in this context */
+  canWrite: boolean
   onSave: (task: Task) => void
   onDelete: (taskId: string) => void
   onCreate: (data: NewTaskData) => void
@@ -39,7 +40,6 @@ export interface NewTaskData {
   due_date: string | null
   estimated_hours: number | null
   today_flag: boolean
-  // Recurring fields
   is_recurring: boolean
   recurrence_frequency: RecurrenceFrequency | null
   recurrence_day_of_week: number | null
@@ -65,6 +65,13 @@ const selectStyle: React.CSSProperties = {
   outline: 'none', background: 'var(--bg4)', border: '1px solid var(--border)',
   color: 'var(--text)', fontFamily: 'Syne, sans-serif', fontSize: '14px',
   appearance: 'none', cursor: 'pointer',
+}
+
+const readOnlySelectStyle: React.CSSProperties = {
+  ...selectStyle,
+  cursor: 'default',
+  opacity: 0.7,
+  pointerEvents: 'none',
 }
 
 function fieldLabel(text: string) {
@@ -150,13 +157,14 @@ interface AnchorPickerProps {
   dayOfWeek: number
   dayOfMonth: number
   month: number
+  readOnly: boolean
   onDayOfWeek: (v: number) => void
   onDayOfMonth: (v: number) => void
   onMonth: (v: number) => void
 }
 
 function AnchorPicker({
-  frequency, dayOfWeek, dayOfMonth, month,
+  frequency, dayOfWeek, dayOfMonth, month, readOnly,
   onDayOfWeek, onDayOfMonth, onMonth,
 }: AnchorPickerProps) {
   function maxDaysInMonth(m: number) {
@@ -173,12 +181,14 @@ function AnchorPicker({
           {DAY_NAMES.map((name, idx) => (
             <button
               key={name}
-              onClick={() => onDayOfWeek(idx)}
+              onClick={() => !readOnly && onDayOfWeek(idx)}
+              disabled={readOnly}
               className="py-2 rounded-lg font-mono text-xs transition-all duration-150"
               style={{
                 background: dayOfWeek === idx ? 'var(--amber)' : 'var(--bg4)',
                 color:      dayOfWeek === idx ? '#0a0a0a'      : 'var(--text3)',
                 border:     dayOfWeek === idx ? 'none' : '1px solid var(--border)',
+                cursor:     readOnly ? 'default' : 'pointer',
               }}
             >
               {name.slice(0, 2)}
@@ -198,12 +208,14 @@ function AnchorPicker({
           {days.map((d) => (
             <button
               key={d}
-              onClick={() => onDayOfMonth(d)}
+              onClick={() => !readOnly && onDayOfMonth(d)}
+              disabled={readOnly}
               className="py-2 rounded-lg font-mono text-xs transition-all duration-150"
               style={{
                 background: dayOfMonth === d ? 'var(--amber)' : 'var(--bg4)',
                 color:      dayOfMonth === d ? '#0a0a0a'      : 'var(--text3)',
                 border:     dayOfMonth === d ? 'none' : '1px solid var(--border)',
+                cursor:     readOnly ? 'default' : 'pointer',
               }}
             >
               {d}
@@ -218,9 +230,9 @@ function AnchorPicker({
   }
 
   if (frequency === 'annual') {
-    const maxDay    = maxDaysInMonth(month)
+    const maxDay     = maxDaysInMonth(month)
     const clampedDay = Math.min(dayOfMonth, maxDay)
-    const days      = Array.from({ length: maxDay }, (_, i) => i + 1)
+    const days       = Array.from({ length: maxDay }, (_, i) => i + 1)
 
     return (
       <div className="space-y-4">
@@ -228,8 +240,9 @@ function AnchorPicker({
           {fieldLabel('Month')}
           <select
             value={month}
-            onChange={(e) => onMonth(Number(e.target.value))}
-            style={selectStyle}
+            onChange={(e) => !readOnly && onMonth(Number(e.target.value))}
+            disabled={readOnly}
+            style={readOnly ? readOnlySelectStyle : selectStyle}
           >
             {MONTH_NAMES.map((name, idx) => (
               <option key={name} value={idx + 1}>{name}</option>
@@ -242,12 +255,14 @@ function AnchorPicker({
             {days.map((d) => (
               <button
                 key={d}
-                onClick={() => onDayOfMonth(d)}
+                onClick={() => !readOnly && onDayOfMonth(d)}
+                disabled={readOnly}
                 className="py-2 rounded-lg font-mono text-xs transition-all duration-150"
                 style={{
                   background: clampedDay === d ? 'var(--amber)' : 'var(--bg4)',
                   color:      clampedDay === d ? '#0a0a0a'      : 'var(--text3)',
                   border:     clampedDay === d ? 'none' : '1px solid var(--border)',
+                  cursor:     readOnly ? 'default' : 'pointer',
                 }}
               >
                 {d}
@@ -300,7 +315,7 @@ function DriftHint({ category, estimatedHours, allTasks }: DriftHintProps) {
 
 export function TaskModal({
   isOpen, onClose, task, projects, allTasks,
-  defaultProjectId, defaultStatus,
+  defaultProjectId, defaultStatus, canWrite,
   onSave, onDelete, onCreate,
 }: TaskModalProps) {
   const isCreating = task === null
@@ -319,7 +334,6 @@ export function TaskModal({
   const [todayFlag,     setTodayFlag]     = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
-  // Recurring state
   const [isRecurring,    setIsRecurring]    = useState(false)
   const [frequency,      setFrequency]      = useState<RecurrenceFrequency>('weekly')
   const [dayOfWeek,      setDayOfWeek]      = useState<number>(1)
@@ -328,12 +342,11 @@ export function TaskModal({
 
   const isMobile = useMediaQuery('(max-width: 768px)')
 
-  const selectedProject    = projects.find((p) => p.id === projectId)
+  const selectedProject     = projects.find((p) => p.id === projectId)
   const availableCategories = selectedProject
     ? getCategoriesForProjectType(selectedProject.type)
     : getCategoriesForProjectType('Work')
 
-  // Clamp dayOfMonth when month changes (annual)
   useEffect(() => {
     if (frequency === 'annual') {
       const max = new Date(2023, recurringMonth, 0).getDate()
@@ -341,7 +354,6 @@ export function TaskModal({
     }
   }, [recurringMonth, frequency, dayOfMonth])
 
-  // Populate form on open
   useEffect(() => {
     if (!isOpen) return
     if (task) {
@@ -413,7 +425,7 @@ export function TaskModal({
   }
 
   const handleSubmit = () => {
-    if (!title.trim()) return
+    if (!title.trim() || !canWrite) return
 
     if (isCreating) {
       let nextDueDate: string | null = null
@@ -500,6 +512,7 @@ export function TaskModal({
   }
 
   const handleDelete = () => {
+    if (!canWrite) return
     if (deleteConfirm) { onDelete(task!.id); onClose() }
     else setDeleteConfirm(true)
   }
@@ -523,25 +536,38 @@ export function TaskModal({
     }
   }
 
-  // Compute Drift suggestion reactively
   const estHoursNum   = estHours ? parseFloat(estHours) : 0
   const showDriftHint = !isNaN(estHoursNum) && estHoursNum > 0
 
-  // ── Completion note display (read-only, edit mode only) ───────────────────
   const showCompletionNote =
     !isCreating &&
     task?.status === 'Done' &&
     task?.completion_note
 
+  // Viewer note — shown at top when read-only and editing an existing task
+  const viewerNote = !canWrite && !isCreating ? (
+    <div
+      className="px-3 py-2.5 rounded-xl mb-2"
+      style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}
+    >
+      <p className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
+        You have view-only access — changes are disabled.
+      </p>
+    </div>
+  ) : null
+
   const content = (
     <div className="space-y-4">
+      {viewerNote}
+
       {/* Title */}
       <Input
         label="Title"
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={canWrite ? (e) => setTitle(e.target.value) : undefined}
         placeholder="What needs doing?"
-        autoFocus={!isMobile}
+        autoFocus={!isMobile && canWrite}
+        readOnly={!canWrite}
       />
 
       {/* Description */}
@@ -549,13 +575,20 @@ export function TaskModal({
         {fieldLabel('Description')}
         <textarea
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Optional notes…"
+          onChange={canWrite ? (e) => setDescription(e.target.value) : undefined}
+          readOnly={!canWrite}
+          placeholder={canWrite ? 'Optional notes…' : ''}
           rows={3}
           className="w-full px-4 py-3 rounded-xl outline-none resize-none font-syne text-sm transition-all duration-150"
-          style={{ background: 'var(--bg4)', border: '1px solid var(--border)', color: 'var(--text)' }}
-          onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--amber)')}
-          onBlur={(e)  => (e.currentTarget.style.borderColor = 'var(--border)')}
+          style={{
+            background: 'var(--bg4)',
+            border:     '1px solid var(--border)',
+            color:      'var(--text)',
+            cursor:     canWrite ? 'text' : 'default',
+            opacity:    canWrite ? 1 : 0.7,
+          }}
+          onFocus={canWrite ? (e) => (e.currentTarget.style.borderColor = 'var(--amber)') : undefined}
+          onBlur={canWrite  ? (e) => (e.currentTarget.style.borderColor = 'var(--border)') : undefined}
         />
       </div>
 
@@ -564,7 +597,7 @@ export function TaskModal({
         {fieldLabel('Project')}
         <select
           value={projectId}
-          onChange={(e) => {
+          onChange={canWrite ? (e) => {
             const newProjectId = e.target.value
             setProjectId(newProjectId)
             const newProject = projects.find((p) => p.id === newProjectId)
@@ -574,8 +607,9 @@ export function TaskModal({
                 setCategory(getDefaultCategoryForProjectType(newProject.type))
               }
             }
-          }}
-          style={selectStyle}
+          } : undefined}
+          disabled={!canWrite}
+          style={canWrite ? selectStyle : readOnlySelectStyle}
         >
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
@@ -584,13 +618,24 @@ export function TaskModal({
       {/* Category */}
       <div>
         {fieldLabel('Category')}
-        <select value={category} onChange={(e) => setCategory(e.target.value as Category)} style={selectStyle}>
+        <select
+          value={category}
+          onChange={canWrite ? (e) => setCategory(e.target.value as Category) : undefined}
+          disabled={!canWrite}
+          style={canWrite ? selectStyle : readOnlySelectStyle}
+        >
           {availableCategories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
 
       {/* Priority */}
-      <PillToggle label="Priority" options={priorities} value={priority} onChange={setPriority} />
+      <PillToggle
+        label="Priority"
+        options={priorities}
+        value={priority}
+        onChange={canWrite ? setPriority : () => {}}
+        disabled={!canWrite}
+      />
 
       {/* Recurring toggle */}
       <div
@@ -605,9 +650,12 @@ export function TaskModal({
             </span>
           </div>
           <div
-            className="relative w-10 h-5 rounded-full cursor-pointer transition-all duration-200"
-            style={{ background: isRecurring ? 'var(--amber)' : 'var(--bg5)' }}
-            onClick={() => setIsRecurring(!isRecurring)}
+            className="relative w-10 h-5 rounded-full transition-all duration-200"
+            style={{
+              background: isRecurring ? 'var(--amber)' : 'var(--bg5)',
+              cursor:     canWrite ? 'pointer' : 'default',
+            }}
+            onClick={() => canWrite && setIsRecurring(!isRecurring)}
           >
             <div
               className="absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200"
@@ -624,12 +672,14 @@ export function TaskModal({
                 {FREQ_OPTIONS.map((f) => (
                   <button
                     key={f}
-                    onClick={() => setFrequency(f)}
+                    onClick={() => canWrite && setFrequency(f)}
+                    disabled={!canWrite}
                     className="py-2 rounded-lg font-mono text-xs capitalize transition-all duration-150"
                     style={{
                       background: frequency === f ? 'var(--amber)' : 'var(--bg4)',
                       color:      frequency === f ? '#0a0a0a'      : 'var(--text3)',
                       border:     frequency === f ? 'none' : '1px solid var(--border)',
+                      cursor:     canWrite ? 'pointer' : 'default',
                     }}
                   >
                     {f}
@@ -643,12 +693,13 @@ export function TaskModal({
               dayOfWeek={dayOfWeek}
               dayOfMonth={dayOfMonth}
               month={recurringMonth}
+              readOnly={!canWrite}
               onDayOfWeek={setDayOfWeek}
               onDayOfMonth={setDayOfMonth}
               onMonth={setRecurringMonth}
             />
 
-            {recurringPreview() && (
+            {canWrite && recurringPreview() && (
               <p className="font-mono text-xs" style={{ color: 'var(--teal)' }}>
                 {recurringPreview()}
               </p>
@@ -664,7 +715,8 @@ export function TaskModal({
             label="Due date"
             type="date"
             value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
+            onChange={canWrite ? (e) => setDueDate(e.target.value) : undefined}
+            readOnly={!canWrite}
           />
           <div>
             <Input
@@ -673,11 +725,11 @@ export function TaskModal({
               step="0.5"
               min="0"
               value={estHours}
-              onChange={(e) => setEstHours(e.target.value)}
+              onChange={canWrite ? (e) => setEstHours(e.target.value) : undefined}
               placeholder="0"
+              readOnly={!canWrite}
             />
-            {/* Drift suggestion — only when hours entered and not recurring */}
-            {showDriftHint && (
+            {canWrite && showDriftHint && (
               <DriftHint
                 category={category}
                 estimatedHours={estHoursNum}
@@ -697,10 +749,11 @@ export function TaskModal({
             step="0.5"
             min="0"
             value={estHours}
-            onChange={(e) => setEstHours(e.target.value)}
+            onChange={canWrite ? (e) => setEstHours(e.target.value) : undefined}
             placeholder="0"
+            readOnly={!canWrite}
           />
-          {showDriftHint && (
+          {canWrite && showDriftHint && (
             <DriftHint
               category={category}
               estimatedHours={estHoursNum}
@@ -712,15 +765,24 @@ export function TaskModal({
 
       {/* Status — edit mode only */}
       {!isCreating && (
-        <PillToggle label="Status" options={statuses} value={status} onChange={setStatus} />
+        <PillToggle
+          label="Status"
+          options={statuses}
+          value={status}
+          onChange={canWrite ? setStatus : () => {}}
+          disabled={!canWrite}
+        />
       )}
 
       {/* Today toggle */}
       <div className="flex items-center gap-3 pt-1">
         <div
-          className="relative w-10 h-5 rounded-full cursor-pointer transition-all duration-200"
-          style={{ background: todayFlag ? 'var(--amber)' : 'var(--bg5)' }}
-          onClick={() => setTodayFlag(!todayFlag)}
+          className="relative w-10 h-5 rounded-full transition-all duration-200"
+          style={{
+            background: todayFlag ? 'var(--amber)' : 'var(--bg5)',
+            cursor:     canWrite ? 'pointer' : 'default',
+          }}
+          onClick={() => canWrite && setTodayFlag(!todayFlag)}
         >
           <div
             className="absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200"
@@ -754,34 +816,47 @@ export function TaskModal({
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-        <button
-          onClick={handleSubmit}
-          disabled={!title.trim()}
-          className="flex-1 py-3 rounded-xl font-syne font-600 text-sm transition-all duration-150"
-          style={{
-            background: title.trim() ? 'var(--amber)' : 'var(--bg5)',
-            color:      title.trim() ? '#0a0a0a'      : 'var(--text3)',
-            cursor:     title.trim() ? 'pointer'       : 'not-allowed',
-          }}
-        >
-          {isCreating ? 'Add task' : 'Save changes'}
-        </button>
-
-        {!isCreating && (
+      {canWrite ? (
+        <div className="flex gap-2 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
           <button
-            onClick={handleDelete}
-            className="flex-1 py-3 rounded-xl font-syne text-sm transition-all duration-150"
+            onClick={handleSubmit}
+            disabled={!title.trim()}
+            className="flex-1 py-3 rounded-xl font-syne font-600 text-sm transition-all duration-150"
             style={{
-              background: deleteConfirm ? 'var(--rose)' : 'var(--bg4)',
-              color:      deleteConfirm ? '#0a0a0a'     : 'var(--text2)',
-              border:     deleteConfirm ? 'none'         : '1px solid var(--border)',
+              background: title.trim() ? 'var(--amber)' : 'var(--bg5)',
+              color:      title.trim() ? '#0a0a0a'      : 'var(--text3)',
+              cursor:     title.trim() ? 'pointer'       : 'not-allowed',
             }}
           >
-            {deleteConfirm ? 'Confirm delete' : 'Delete'}
+            {isCreating ? 'Add task' : 'Save changes'}
           </button>
-        )}
-      </div>
+
+          {!isCreating && (
+            <button
+              onClick={handleDelete}
+              className="flex-1 py-3 rounded-xl font-syne text-sm transition-all duration-150"
+              style={{
+                background: deleteConfirm ? 'var(--rose)' : 'var(--bg4)',
+                color:      deleteConfirm ? '#0a0a0a'     : 'var(--text2)',
+                border:     deleteConfirm ? 'none'         : '1px solid var(--border)',
+              }}
+            >
+              {deleteConfirm ? 'Confirm delete' : 'Delete'}
+            </button>
+          )}
+        </div>
+      ) : (
+        /* Viewer: just a close button */
+        <div className="pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+          <button
+            onClick={onClose}
+            className="w-full py-3 rounded-xl font-syne font-600 text-sm"
+            style={{ background: 'var(--bg4)', color: 'var(--text2)', border: '1px solid var(--border)' }}
+          >
+            Close
+          </button>
+        </div>
+      )}
 
       {deleteConfirm && (
         <p className="font-mono text-xs text-center" style={{ color: 'var(--col-high)' }}>

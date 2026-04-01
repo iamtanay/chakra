@@ -7,6 +7,7 @@ import { KanbanColumn } from './KanbanColumn'
 interface KanbanBoardProps {
   tasks: Task[]
   projects: Project[]
+  canWrite: boolean
   onCardClick: (task: Task) => void
   onComplete: (task: Task) => void
   onUndoDone: (task: Task) => void
@@ -16,20 +17,21 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({
-  tasks, projects,
+  tasks, projects, canWrite,
   onCardClick, onComplete, onUndoDone, onTodayToggle, onStatusChange, onAddTask,
 }: KanbanBoardProps) {
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
+  const [draggedTaskId,  setDraggedTaskId]  = useState<string | null>(null)
   const [dragOverStatus, setDragOverStatus] = useState<Status | null>(null)
-  // Web-only: toggle to reveal Done tasks older than 24 h
   const [showOldCompleted, setShowOldCompleted] = useState(false)
   const projectsMap = new Map(projects.map((p) => [p.id, p]))
 
   const handleDragStart = (taskId: string) => {
+    if (!canWrite) return
     setDraggedTaskId(taskId)
   }
 
   const handleDragOver = (e: React.DragEvent, status: Status) => {
+    if (!canWrite) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setDragOverStatus(status)
@@ -40,6 +42,7 @@ export function KanbanBoard({
   }
 
   const handleDrop = (e: React.DragEvent, status: Status) => {
+    if (!canWrite) return
     e.preventDefault()
     setDragOverStatus(null)
     if (!draggedTaskId) return
@@ -67,6 +70,7 @@ export function KanbanBoard({
           status={status}
           tasks={tasks}
           projects={projectsMap}
+          canWrite={canWrite}
           onCardClick={onCardClick}
           onComplete={onComplete}
           onUndoDone={onUndoDone}
@@ -79,7 +83,6 @@ export function KanbanBoard({
           draggedTaskId={draggedTaskId}
           isDragOver={dragOverStatus === status}
           onAddTask={onAddTask}
-          // Done-column history toggle — only relevant for Done, ignored by others
           showOldCompleted={status === 'Done' ? showOldCompleted : false}
           onToggleOldCompleted={status === 'Done' ? () => setShowOldCompleted((v) => !v) : undefined}
         />
