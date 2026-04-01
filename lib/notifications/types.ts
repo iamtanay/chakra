@@ -28,8 +28,9 @@ export interface TaskRow {
   completed_at?:  string | null
   project_id:   string
   projects?: {
-    name:  string
-    color: string
+    name:     string
+    color:    string
+    owner_id: string   // needed for per-user notification filtering
   } | null
 }
 

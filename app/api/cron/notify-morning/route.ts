@@ -4,7 +4,8 @@
 //
 // What it does:
 //   1. Fetches all push subscriptions from Supabase
-//   2. For each user, queries their pending tasks for today
+//   2. For each subscriber, queries THEIR pending tasks for today
+//      (tasks in projects they own OR are a member of)
 //   3. Sends a tailored "morning briefing" push notification
 //
 // Security: guarded by CRON_SECRET — Vercel automatically sets the
@@ -62,6 +63,21 @@ function isWithin48hOverdue(task: TaskRow, todayISO: string): boolean {
   return diffDays >= 1 && diffDays <= 2
 }
 
+/**
+ * Returns true if the given userId has access to the project —
+ * either as owner or as a member.
+ */
+function userCanAccessProject(
+  userId: string,
+  project: { owner_id: string } | null | undefined,
+  memberProjectIds: Set<string>,
+  projectId: string,
+): boolean {
+  if (!project) return false
+  if (project.owner_id === userId) return true
+  return memberProjectIds.has(projectId)
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function GET(request: Request) {
   // Validate Vercel cron secret
@@ -74,7 +90,7 @@ export async function GET(request: Request) {
   const results  = { sent: 0, skipped: 0, failed: 0 }
 
   try {
-    // 1. Fetch all subscriptions (up to 10 users, each may have multiple devices)
+    // 1. Fetch all subscriptions (each user may have multiple devices)
     const { data: subs, error: subsError } = await supabase
       .from('push_subscriptions')
       .select('*')
@@ -84,7 +100,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: 'No subscribers', ...results })
     }
 
-    // 2. Get unique user IDs
+    // 2. Get unique user IDs across all subscriptions
     const userIds = [...new Set((subs as PushSubscriptionRow[]).map((s) => s.user_id))]
 
     // 3. Compute the 48-hour cutoff date (YYYY-MM-DD, 2 days ago)
@@ -94,10 +110,8 @@ export async function GET(request: Request) {
     cutoffDate.setDate(cutoffDate.getDate() - 2)
     const cutoffISO  = cutoffDate.toISOString().split('T')[0]  // 2 days ago YYYY-MM-DD
 
-    // 4. Fetch today's pending tasks + overdue tasks within 48 h for each user.
-    //    We fetch from the cutoff date forward so DB does the heavy lifting,
-    //    then we apply the precise 48-hour filter in JS (handles next_due_date too).
-    //
+    // 4. Fetch today's pending tasks + overdue tasks within 48 h.
+    //    Include owner_id from projects so we can filter per-user.
     //    Query: status != Done AND (today_flag = true
     //                               OR due_date between cutoff and today
     //                               OR next_due_date between cutoff and today)
@@ -113,7 +127,7 @@ export async function GET(request: Request) {
         next_due_date,
         is_recurring,
         project_id,
-        projects ( name, color )
+        projects ( name, color, owner_id )
       `)
       .neq('status', 'Done')
       .or(
@@ -126,7 +140,7 @@ export async function GET(request: Request) {
 
     if (tasksError) throw tasksError
 
-    // 5. Apply the JS filter:
+    // 5. Apply the JS date filter:
     //    - today_flag tasks → always include
     //    - tasks due today (due_date or next_due_date === today) → always include
     //    - tasks with a past due_date → only include if overdue by 1–2 days
@@ -138,14 +152,39 @@ export async function GET(request: Request) {
       return isWithin48hOverdue(t, todayISO ?? '')
     })
 
-    // 6. Fan-out: send one notification per subscription
+    // 6. Fetch project memberships for all subscriber users in one query.
+    //    This gives us the set of project_ids each user is a member of
+    //    (not counting projects they own — those are checked via owner_id).
+    const { data: memberships, error: membershipsError } = await supabase
+      .from('project_members')
+      .select('user_id, project_id')
+      .in('user_id', userIds)
+
+    if (membershipsError) throw membershipsError
+
+    // Build a map: userId → Set<projectId> for O(1) membership lookups
+    const membershipMap = new Map<string, Set<string>>()
+    for (const row of memberships ?? []) {
+      if (!membershipMap.has(row.user_id)) {
+        membershipMap.set(row.user_id, new Set())
+      }
+      membershipMap.get(row.user_id)!.add(row.project_id)
+    }
+
+    // 7. Fan-out: send one notification per subscription, filtered to that user's tasks
     const sendPromises = (subs as PushSubscriptionRow[]).map(async (sub) => {
       try {
-        // Single-user today: all tasks belong to the one user.
-        // Multi-user future: filter by sub.user_id once tasks have a user_id column.
-        const userTasks = pendingTasks
+        const memberProjectIds = membershipMap.get(sub.user_id) ?? new Set<string>()
 
-        // Skip if nothing to report
+        // Filter tasks to only those the subscriber can access:
+        //   - they own the project (projects.owner_id === sub.user_id), OR
+        //   - they are a member of the project
+        const userTasks = pendingTasks.filter((t) => {
+          const proj = t.projects as { name: string; color: string; owner_id: string } | null
+          return userCanAccessProject(sub.user_id, proj, memberProjectIds, t.project_id)
+        })
+
+        // Skip if nothing to report for this user
         if (userTasks.length === 0) {
           results.skipped++
           return

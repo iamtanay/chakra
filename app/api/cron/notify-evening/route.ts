@@ -4,10 +4,11 @@
 //
 // What it does:
 //   1. Fetches all push subscriptions
-//   2. Checks if the user has any tasks done today without actual_hours logged
-//      OR any today_flag tasks that are still not Done
-//      OR any tasks due today (due_date / next_due_date) that are still not Done
-//      OR any tasks overdue within 48 hours that are still not Done
+//   2. For each subscriber, checks THEIR tasks:
+//      - tasks completed today without actual_hours logged
+//      - today_flag tasks still not Done
+//      - tasks due today (due_date / next_due_date) still not Done
+//      - tasks overdue within 48 hours still not Done
 //   3. Sends a "time to log" reminder if warranted; skips if the day is clean.
 //
 // Overdue filter: tasks overdue by more than 48 hours are excluded from
@@ -66,6 +67,21 @@ function isWithin48hOverdue(task: TaskRow, todayISO: string): boolean {
   return diffDays >= 1 && diffDays <= 2
 }
 
+/**
+ * Returns true if the given userId has access to the project —
+ * either as owner or as a member.
+ */
+function userCanAccessProject(
+  userId: string,
+  project: { owner_id: string } | null | undefined,
+  memberProjectIds: Set<string>,
+  projectId: string,
+): boolean {
+  if (!project) return false
+  if (project.owner_id === userId) return true
+  return memberProjectIds.has(projectId)
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function GET(request: Request) {
   const auth = request.headers.get('authorization')
@@ -86,6 +102,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: 'No subscribers', ...results })
     }
 
+    // Unique user IDs across all subscriptions
+    const userIds = [...new Set((subs as PushSubscriptionRow[]).map((s) => s.user_id))]
+
     const todayISO   = new Date().toISOString().split('T')[0]
     const todayStart = `${todayISO}T00:00:00.000Z`
     const todayEnd   = `${todayISO}T23:59:59.999Z`
@@ -96,9 +115,10 @@ export async function GET(request: Request) {
     const cutoffISO  = cutoffDate.toISOString().split('T')[0]
 
     // ── Query 1: Tasks completed today (to check if hours were logged) ────────
+    // Include owner_id for per-user filtering
     const { data: doneTodayRaw, error: doneError } = await supabase
       .from('tasks')
-      .select('id, title, actual_hours, completed_at, today_flag, due_date, next_due_date, project_id, projects(name, color)')
+      .select('id, title, actual_hours, completed_at, today_flag, due_date, next_due_date, is_recurring, project_id, projects(name, color, owner_id)')
       .eq('status', 'Done')
       .gte('completed_at', todayStart)
       .lte('completed_at', todayEnd)
@@ -108,7 +128,7 @@ export async function GET(request: Request) {
     // ── Query 2: today_flag tasks still not done ──────────────────────────────
     const { data: stillPendingRaw, error: pendingError } = await supabase
       .from('tasks')
-      .select('id, title, status, priority, today_flag, due_date, next_due_date, project_id, projects(name, color)')
+      .select('id, title, status, priority, today_flag, due_date, next_due_date, is_recurring, project_id, projects(name, color, owner_id)')
       .eq('today_flag', true)
       .neq('status', 'Done')
 
@@ -119,7 +139,7 @@ export async function GET(request: Request) {
     //    Excludes today_flag=true to avoid double-counting with Query 2.
     const { data: duePendingRaw, error: dueError } = await supabase
       .from('tasks')
-      .select('id, title, status, priority, today_flag, due_date, next_due_date, project_id, projects(name, color)')
+      .select('id, title, status, priority, today_flag, due_date, next_due_date, is_recurring, project_id, projects(name, color, owner_id)')
       .or(
         [
           `due_date.gte.${cutoffISO}`,
@@ -142,22 +162,51 @@ export async function GET(request: Request) {
       return isWithin48hOverdue(t, todayISO ?? '')
     })
 
-    // today_flag tasks: always include (user explicitly flagged them)
-    const todayFlagPendingFiltered = todayFlagPending
+    // Fetch project memberships for all subscriber users in one query
+    const { data: memberships, error: membershipsError } = await supabase
+      .from('project_members')
+      .select('user_id, project_id')
+      .in('user_id', userIds)
 
-    // Merge pending (no duplicates: today_flag=false vs true, filtered above)
-    const stillPending = [...todayFlagPendingFiltered, ...duePendingFiltered]
+    if (membershipsError) throw membershipsError
 
-    // Unlogged = completed today but no actual_hours recorded
-    const unlogged = doneToday.filter((t) => t.actual_hours == null)
-
-    // Skip if there's nothing actionable
-    if (unlogged.length === 0 && stillPending.length === 0) {
-      return NextResponse.json({ message: 'Nothing to remind', ...results })
+    // Build a map: userId → Set<projectId> for O(1) membership lookups
+    const membershipMap = new Map<string, Set<string>>()
+    for (const row of memberships ?? []) {
+      if (!membershipMap.has(row.user_id)) {
+        membershipMap.set(row.user_id, new Set())
+      }
+      membershipMap.get(row.user_id)!.add(row.project_id)
     }
 
+    // Fan-out: send one notification per subscription, scoped to that user's tasks
     const sendPromises = (subs as PushSubscriptionRow[]).map(async (sub) => {
       try {
+        const memberProjectIds = membershipMap.get(sub.user_id) ?? new Set<string>()
+
+        // Helper to check if this subscriber can see a given task
+        const canSee = (t: TaskRow): boolean => {
+          const proj = t.projects as { name: string; color: string; owner_id: string } | null
+          return userCanAccessProject(sub.user_id, proj, memberProjectIds, t.project_id)
+        }
+
+        // Filter all three task sets down to this user's accessible tasks
+        const userDoneToday        = doneToday.filter(canSee)
+        const userTodayFlagPending = todayFlagPending.filter(canSee)
+        const userDuePending       = duePendingFiltered.filter(canSee)
+
+        // Merge pending (no duplicates: today_flag=false vs true, filtered above)
+        const stillPending = [...userTodayFlagPending, ...userDuePending]
+
+        // Unlogged = completed today by this user but no actual_hours recorded
+        const unlogged = userDoneToday.filter((t) => t.actual_hours == null)
+
+        // Skip if there's nothing actionable for this subscriber
+        if (unlogged.length === 0 && stillPending.length === 0) {
+          results.skipped++
+          return
+        }
+
         const payload = buildEveningPayload(unlogged, stillPending)
 
         await webpush.sendNotification(
