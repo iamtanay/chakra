@@ -34,5 +34,8 @@ enable_signup = true
 enabled = true
 policy = "per_worker"
 
+# verify_jwt = false: Supabase gateway skips its own JWT check.
+# The function performs its own auth validation internally via getUser(),
+# so this is safe — unauthenticated callers still get 401 from our code.
 [functions.lookup-user]
-verify_jwt = true
+verify_jwt = false
