@@ -1,15 +1,16 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Sidebar } from '@/components/layout/Sidebar'
-import { BottomNav } from '@/components/layout/BottomNav'
+import { AppShell } from '@/components/layout/AppShell'
+import { PageTopBar } from '@/components/layout/PageTopBar'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { ProjectModal } from '@/components/projects/ProjectModal'
 import { ShareModal } from '@/components/projects/ShareModal'
 import { TaskModal } from '@/components/modals/TaskModal'
 import { Logo } from '@/components/ui/Logo'
-import { Plus } from 'lucide-react'
+import { Plus, LayoutDashboard } from 'lucide-react'
 import type { Project, Task, ProjectMember } from '@/types'
 import type { NewTaskData } from '@/components/modals/TaskModal'
 
@@ -17,6 +18,8 @@ import type { NewTaskData } from '@/components/modals/TaskModal'
 const db = (table: string) => (createClient() as any).from(table)
 
 export default function ProjectsPage() {
+  const router = useRouter()
+
   const [projects,       setProjects]       = useState<Project[]>([])
   const [tasks,          setTasks]          = useState<Task[]>([])
   const [members,        setMembers]        = useState<ProjectMember[]>([])
@@ -39,8 +42,6 @@ export default function ProjectsPage() {
     setLoading(true)
     try {
       const supabase = createClient()
-
-      // Get current user — local cache hit, no network round trip
       const { data: { user } } = await supabase.auth.getUser()
       const uid = user?.id ?? null
       setCurrentUserId(uid)
@@ -52,8 +53,6 @@ export default function ProjectsPage() {
       ] = await Promise.all([
         db('projects').select('*'),
         db('tasks').select('*'),
-        // Fetch all project_members rows visible to this user
-        // (RLS returns: own rows + all rows for projects you own)
         db('project_members').select('*'),
       ])
 
@@ -67,16 +66,11 @@ export default function ProjectsPage() {
 
   useEffect(() => { loadData() }, [])
 
-  // ── Permission helpers ──────────────────────────────────────────────────────
+  // ── Permission helpers ────────────────────────────────────────────────────
 
-  /** Returns true if the current user owns the given project. */
   const isOwnerOf = (project: Project): boolean =>
     !!currentUserId && project.owner_id === currentUserId
 
-  /**
-   * Returns true if the current user can edit (write) to the given project.
-   * True for owners, and for members with role='editor'.
-   */
   const canEditProject = (project: Project): boolean => {
     if (isOwnerOf(project)) return true
     if (!currentUserId) return false
@@ -103,13 +97,11 @@ export default function ProjectsPage() {
     try {
       setLogoSpin('loop')
       if (editingProject) {
-        // Editor/owner: only update allowed fields
         setProjects(projects.map((p) => p.id === project.id ? project : p))
         await db('projects')
           .update({ name: project.name, type: project.type, color: project.color })
           .eq('id', project.id)
       } else {
-        // New project — must include owner_id
         const { data } = await db('projects')
           .insert([{
             name:     project.name,
@@ -133,7 +125,7 @@ export default function ProjectsPage() {
     finally { setLogoSpin(null); setEditingProject(null); setShowModal(false) }
   }
 
-  // ── Recurring task handlers ────────────────────────────────────────────────
+  // ── Task helpers (for recurring tasks inside ProjectModal) ────────────────
 
   const handleEditRecurringTask = (task: Task) => {
     setShowModal(false)
@@ -168,7 +160,6 @@ export default function ProjectsPage() {
     if (editingProject) setShowModal(true)
   }
 
-  // canWrite for the task modal — based on which project the task belongs to
   const taskModalCanWrite = useMemo(() => {
     if (!editingTask) return false
     const project = projects.find((p) => p.id === editingTask.project_id)
@@ -177,7 +168,7 @@ export default function ProjectsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingTask, projects, members, currentUserId])
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -188,97 +179,108 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="flex h-screen" style={{ background: 'var(--bg)' }}>
-      <Sidebar projects={projects} selectedProjectId={null} onProjectSelect={() => {}} />
-
-      <div className="flex-1 md:ml-[var(--sidebar-w)] flex flex-col pb-14 md:pb-0 overflow-hidden">
-        <div
-          className="flex items-center justify-between px-5 md:px-8 py-4 flex-shrink-0"
-          style={{ borderBottom: '1px solid var(--border)' }}
-        >
-          <div className="flex items-center gap-3">
-            <Logo size={22} spin={logoSpin} />
-            <h1
-              className="font-syne font-800 text-lg uppercase tracking-widest"
-              style={{ color: 'var(--text)', letterSpacing: '0.15em' }}
-            >
-              Projects
-            </h1>
-          </div>
+    <AppShell projects={projects} selectedProjectId={null} onProjectSelect={() => {}}>
+      {/* ── Unified top bar ── */}
+      <PageTopBar
+        title="Projects"
+        logoSpin={logoSpin}
+        actions={
           <button
             onClick={() => { setEditingProject(null); setShowModal(true) }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-syne font-600 text-sm transition-all duration-150"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-syne font-600 text-sm transition-all duration-150"
             style={{ background: 'var(--amber)', color: '#0a0a0a' }}
           >
-            <Plus size={16} />
-            New
+            <Plus size={15} />
+            <span className="hidden sm:inline">New project</span>
+            <span className="sm:hidden">New</span>
           </button>
-        </div>
+        }
+      />
 
-        <div className="flex-1 overflow-auto p-5 md:p-8">
-          <div className="max-w-4xl mx-auto">
-            {projects.length === 0 ? (
-              <div
-                className="flex flex-col items-center justify-center py-20 rounded-2xl"
-                style={{ border: '1.5px dashed var(--border2)' }}
-              >
-                <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
-                  No projects yet.
-                </p>
-                <p className="font-mono text-xs mt-1" style={{ color: 'var(--text3)', opacity: 0.6 }}>
-                  Create one to begin.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {Object.entries(groupedProjects).map(([type, list]) => {
-                  if (list.length === 0) return null
-                  return (
-                    <div key={type}>
-                      <div className="flex items-center gap-3 mb-4">
-                        <span
-                          className="font-mono text-xs uppercase tracking-widest"
-                          style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
-                        >
-                          {type}
-                        </span>
-                        <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                        <span className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
-                          {list.length}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {list.map((p) => {
-                          const s      = getStats(p.id)
-                          const owner  = isOwnerOf(p)
-                          const editor = canEditProject(p)
-                          return (
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-5 md:p-8">
+        <div className="max-w-4xl mx-auto">
+          {projects.length === 0 ? (
+            <div
+              className="flex flex-col items-center justify-center py-20 rounded-2xl"
+              style={{ border: '1.5px dashed var(--border2)' }}
+            >
+              <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
+                No projects yet.
+              </p>
+              <p className="font-mono text-xs mt-1" style={{ color: 'var(--text3)', opacity: 0.6 }}>
+                Create one to begin.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {Object.entries(groupedProjects).map(([type, list]) => {
+                if (list.length === 0) return null
+                return (
+                  <div key={type}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span
+                        className="font-mono text-xs uppercase tracking-widest"
+                        style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
+                      >
+                        {type}
+                      </span>
+                      <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                      <span className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
+                        {list.length}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {list.map((p) => {
+                        const s = getStats(p.id)
+                        return (
+                          <div key={p.id} className="relative group/card">
                             <ProjectCard
-                              key={p.id}
                               project={p}
                               taskCount={s.total}
                               completedCount={s.completed}
-                              isOwner={owner}
+                              isOwner={isOwnerOf(p)}
                               onEdit={(proj) => {
-                                // Viewers can open the modal (read-only), editors/owners can edit
                                 setEditingProject(proj)
                                 setShowModal(true)
                               }}
                               onShare={(proj) => setSharingProject(proj)}
                             />
-                          )
-                        })}
-                      </div>
+                            {/* Open in Board button — appears on hover */}
+                            <button
+                              onClick={() => router.push(`/board?project=${p.id}`)}
+                              className="absolute bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-syne font-600 text-xs transition-all duration-150 opacity-0 group-hover/card:opacity-100"
+                              style={{
+                                background: 'var(--bg5)',
+                                color: 'var(--text2)',
+                                border: '1px solid var(--border)',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'var(--amber-dim)'
+                                e.currentTarget.style.color = 'var(--amber)'
+                                e.currentTarget.style.borderColor = 'rgba(232,162,71,0.3)'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'var(--bg5)'
+                                e.currentTarget.style.color = 'var(--text2)'
+                                e.currentTarget.style.borderColor = 'var(--border)'
+                              }}
+                              title="Open this project in Board view"
+                            >
+                              <LayoutDashboard size={12} />
+                              Open in Board
+                            </button>
+                          </div>
+                        )
+                      })}
                     </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
-
-      <BottomNav />
 
       {/* Project modal — create / edit */}
       <ProjectModal
@@ -322,6 +324,6 @@ export default function ProjectsPage() {
         onDelete={handleTaskDelete}
         onCreate={handleTaskCreate}
       />
-    </div>
+    </AppShell>
   )
 }

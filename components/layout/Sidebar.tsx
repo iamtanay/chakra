@@ -78,6 +78,23 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
   // Avatar initial — first letter of display name or email
   const avatarChar = (displayName || email).charAt(0).toUpperCase()
 
+  /**
+   * Clicking a project in the sidebar navigates to /board?project=<id>.
+   * If already on /board, we also call onProjectSelect so the board
+   * updates without a full navigation (URL change triggers the board via useSearchParams).
+   */
+  const handleProjectClick = (projectId: string | null) => {
+    if (projectId === null) {
+      router.push('/board')
+    } else {
+      router.push(`/board?project=${projectId}`)
+    }
+    onProjectSelect(projectId)
+  }
+
+  // Highlight a project row when on /board and it matches the URL
+  const isOnBoard = pathname === '/board'
+
   const groupedProjects = {
     Work:     projects.filter((p) => p.type === 'Work'),
     Study:    projects.filter((p) => p.type === 'Study'),
@@ -162,12 +179,13 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
           className="mt-3 mx-3 pt-3 flex-1 overflow-y-auto"
           style={{ borderTop: '1px solid var(--border)' }}
         >
+          {/* "All Projects" shortcut — goes to /board with no filter */}
           <button
-            onClick={() => onProjectSelect(null)}
+            onClick={() => handleProjectClick(null)}
             className="w-full text-left px-3 py-2 rounded-lg font-syne text-xs font-500 transition-all duration-150 mb-2"
             style={{
-              color:      selectedProjectId === null ? 'var(--amber)' : 'var(--text3)',
-              background: selectedProjectId === null ? 'var(--amber-dim)' : 'transparent',
+              color:      (isOnBoard && selectedProjectId === null) ? 'var(--amber)' : 'var(--text3)',
+              background: (isOnBoard && selectedProjectId === null) ? 'var(--amber-dim)' : 'transparent',
               letterSpacing: '0.05em',
             }}
           >
@@ -184,28 +202,31 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
                 >
                   {type}
                 </div>
-                {list.map((project) => (
-                  <button
-                    key={project.id}
-                    onClick={() => onProjectSelect(project.id)}
-                    className="w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-150 flex items-center gap-2.5 group"
-                    style={{
-                      color:      selectedProjectId === project.id ? 'var(--text)' : 'var(--text2)',
-                      background: selectedProjectId === project.id ? 'var(--bg4)' : 'transparent',
-                    }}
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-150"
+                {list.map((project) => {
+                  const isActive = isOnBoard && selectedProjectId === project.id
+                  return (
+                    <button
+                      key={project.id}
+                      onClick={() => handleProjectClick(project.id)}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-150 flex items-center gap-2.5 group"
                       style={{
-                        backgroundColor: project.color,
-                        boxShadow: selectedProjectId === project.id
-                          ? `0 0 6px ${project.color}`
-                          : 'none',
+                        color:      isActive ? 'var(--text)' : 'var(--text2)',
+                        background: isActive ? 'var(--bg4)' : 'transparent',
                       }}
-                    />
-                    <span className="truncate font-syne text-xs font-500">{project.name}</span>
-                  </button>
-                ))}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-150"
+                        style={{
+                          backgroundColor: project.color,
+                          boxShadow: isActive
+                            ? `0 0 6px ${project.color}`
+                            : 'none',
+                        }}
+                      />
+                      <span className="truncate font-syne text-xs font-500">{project.name}</span>
+                    </button>
+                  )
+                })}
               </div>
             )
           })}

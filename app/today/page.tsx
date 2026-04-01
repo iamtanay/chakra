@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Sidebar } from '@/components/layout/Sidebar'
-import { BottomNav } from '@/components/layout/BottomNav'
+import { AppShell } from '@/components/layout/AppShell'
+import { PageTopBar } from '@/components/layout/PageTopBar'
 import { DailyPulse } from '@/components/layout/DailyPulse'
 import { TaskModal, type NewTaskData } from '@/components/modals/TaskModal'
 import { CompleteModal } from '@/components/modals/CompleteModal'
@@ -86,27 +86,16 @@ export default function TodayPage() {
 
   useEffect(() => { loadData() }, [])
 
-  // Today's date string (YYYY-MM-DD) for deadline comparison
   const todayStr = toISODate(new Date())
 
-  /**
-   * Returns true if a non-recurring task is overdue within the 2-day window.
-   * "Overdue" means due_date is strictly in the past (before today).
-   * Window: due_date >= (today - 2 days) AND due_date < today.
-   * Future tasks and recurring tasks are never included here.
-   */
   const isRecentlyOverdue = (t: Task): boolean => {
     if (t.is_recurring) return false
-
     const dueISO = t.due_date
     if (!dueISO) return false
-
     const dueDate   = parseLocalDate(dueISO)
     const todayDate = parseLocalDate(todayStr)
-
-    const diffMs   = todayDate.getTime() - dueDate.getTime()
-    const diffDays = diffMs / (1000 * 60 * 60 * 24)
-
+    const diffMs    = todayDate.getTime() - dueDate.getTime()
+    const diffDays  = diffMs / (1000 * 60 * 60 * 24)
     return diffDays >= 1 && diffDays <= 2
   }
 
@@ -240,119 +229,78 @@ export default function TodayPage() {
   const totalToday = todayTasks.length + doneTodayTasks.length
 
   return (
-    <div className="flex h-screen" style={{ background: 'var(--bg)' }}>
-      <Sidebar
-        projects={projects}
-        selectedProjectId={null}
-        onProjectSelect={() => {}}
+    <AppShell projects={projects} selectedProjectId={null} onProjectSelect={() => {}}>
+      {/* ── Unified top bar ── */}
+      <PageTopBar
+        title="Today"
+        logoSpin={logoSpin}
+        badge={totalToday > 0 ? totalToday : null}
       />
 
-      <div className="flex-1 md:ml-[var(--sidebar-w)] flex flex-col pb-14 md:pb-0 overflow-hidden">
+      {/* DailyPulse strip */}
+      <DailyPulse tasks={tasks} projects={projects} selectedProjectId={null} />
 
-        {/* Mobile top bar */}
-        <div
-          className="md:hidden flex items-center justify-between px-4 py-3"
-          style={{
-            borderBottom: '1px solid var(--border)',
-            background: 'linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%)',
-          }}
-        >
-          <div className="flex items-center gap-2.5">
-            <Logo size={24} spin={logoSpin} />
-            <span className="logo-text" style={{ fontSize: 13 }}>Chakra</span>
+      {/* Body */}
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        {totalToday === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
+              Nothing due or marked for today.
+            </p>
+            <p className="font-mono text-xs" style={{ color: 'var(--text3)', opacity: 0.6 }}>
+              Star a task on the board or set a deadline to add it here.
+            </p>
           </div>
-        </div>
+        ) : (
+          <div className="max-w-2xl mx-auto space-y-6">
 
-        <DailyPulse tasks={tasks} projects={projects} selectedProjectId={null} />
-
-        {/* Desktop header */}
-        <div
-          className="hidden md:flex items-center justify-between px-5 md:px-6 py-3"
-          style={{ borderBottom: '1px solid var(--border)' }}
-        >
-          <div className="flex items-center gap-3">
-            <Logo size={18} spin={logoSpin} />
-            <h1
-              className="font-syne font-800 text-base uppercase tracking-widest"
-              style={{ color: 'var(--text)', letterSpacing: '0.15em' }}
-            >
-              Today
-            </h1>
-            {totalToday > 0 && (
-              <span
-                className="font-mono text-xs w-6 h-6 rounded-full flex items-center justify-center"
-                style={{ background: 'var(--bg4)', color: 'var(--text3)' }}
-              >
-                {totalToday}
-              </span>
+            {/* Pending tasks */}
+            {todayTasks.length > 0 && (
+              <div className="space-y-2.5">
+                {todayTasks.map((task) => (
+                  <TodayTaskRow
+                    key={task.id}
+                    task={task}
+                    project={projectsMap.get(task.project_id)}
+                    onEdit={() => { setEditingTask(task); setModalOpen(true) }}
+                    onComplete={() => handleComplete(task)}
+                    onUnstar={() => handleTodayToggle(task)}
+                    isAutoAdded={!task.today_flag}
+                  />
+                ))}
+              </div>
             )}
-          </div>
-        </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-auto p-4 md:p-6">
-          {totalToday === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3">
-              <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
-                Nothing due or marked for today.
-              </p>
-              <p className="font-mono text-xs" style={{ color: 'var(--text3)', opacity: 0.6 }}>
-                Star a task on the board or set a deadline to add it here.
-              </p>
-            </div>
-          ) : (
-            <div className="max-w-2xl mx-auto space-y-6">
-
-              {/* Pending tasks */}
-              {todayTasks.length > 0 && (
-                <div className="space-y-2.5">
-                  {todayTasks.map((task) => (
-                    <TodayTaskRow
+            {/* Completed today section */}
+            {doneTodayTasks.length > 0 && (
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <span
+                    className="font-mono text-xs uppercase tracking-widest"
+                    style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
+                  >
+                    Done (Last 24 Hours)
+                  </span>
+                  <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                  <span className="font-mono text-xs" style={{ color: 'var(--teal)' }}>
+                    {doneTodayTasks.length}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {doneTodayTasks.map((task) => (
+                    <TodayDoneRow
                       key={task.id}
                       task={task}
                       project={projectsMap.get(task.project_id)}
                       onEdit={() => { setEditingTask(task); setModalOpen(true) }}
-                      onComplete={() => handleComplete(task)}
-                      onUnstar={() => handleTodayToggle(task)}
-                      isAutoAdded={!task.today_flag}
                     />
                   ))}
                 </div>
-              )}
-
-              {/* Completed today section */}
-              {doneTodayTasks.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-3 mb-3">
-                    <span
-                      className="font-mono text-xs uppercase tracking-widest"
-                      style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
-                    >
-                      Done (Last 24 Hours)
-                    </span>
-                    <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                    <span className="font-mono text-xs" style={{ color: 'var(--teal)' }}>
-                      {doneTodayTasks.length}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {doneTodayTasks.map((task) => (
-                      <TodayDoneRow
-                        key={task.id}
-                        task={task}
-                        project={projectsMap.get(task.project_id)}
-                        onEdit={() => { setEditingTask(task); setModalOpen(true) }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
-      <BottomNav />
 
       <TaskModal
         isOpen={modalOpen}
@@ -372,11 +320,11 @@ export default function TodayPage() {
         task={completingTask}
         onConfirm={handleCompleteConfirm}
       />
-    </div>
+    </AppShell>
   )
 }
 
-// ── Today task row ────────────────────────────────────────────────────────────
+// ── Today task row ─────────────────────────────────────────────────────────────
 
 interface TodayTaskRowProps {
   task: Task
@@ -501,7 +449,7 @@ function TodayTaskRow({ task, project, onEdit, onComplete, onUnstar, isAutoAdded
   )
 }
 
-// ── Done today row ────────────────────────────────────────────────────────────
+// ── Done today row ──────────────────────────────────────────────────────────────
 
 interface TodayDoneRowProps {
   task: Task
