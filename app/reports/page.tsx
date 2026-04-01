@@ -14,6 +14,7 @@ export default function ReportsPage() {
   const [projects,  setProjects]  = useState<Project[]>([])
   const [tasks,     setTasks]     = useState<Task[]>([])
   const [loading,   setLoading]   = useState(true)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState<'month' | 'quarter' | 'year'>('month')
   const [logoSpin,  setLogoSpin]  = useState<'once' | 'fast' | 'loop' | null>('once')
 
@@ -25,6 +26,9 @@ export default function ReportsPage() {
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      setCurrentUserId(user?.id ?? null)
+
       const [{ data: pd }, { data: td }] = await Promise.all([
         supabase.from('projects').select('*'),
         supabase.from('tasks').select('*'),
@@ -36,7 +40,7 @@ export default function ReportsPage() {
     load()
   }, [])
 
-  const report = useMemo(() => generateReportData(tasks, projects, timeRange), [tasks, projects, timeRange])
+  const report = useMemo(() => generateReportData(tasks, projects, timeRange, currentUserId), [tasks, projects, timeRange, currentUserId])
 
   if (loading) {
     return (

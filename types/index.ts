@@ -137,6 +137,9 @@ export interface Task {
 
   // ── Traces: optional completion note ─────────────────────────────────────
   completion_note: string | null
+
+  // ── Attribution: who marked this task Done ───────────────────────────────
+  completed_by: string | null
 }
 
 export interface DailyPulse {

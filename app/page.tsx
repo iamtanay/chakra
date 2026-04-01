@@ -264,7 +264,7 @@ export default function BoardPage() {
         prev.map((t) => t.id === taskId ? { ...t, status: newStatus, completed_at: null } : t)
       )
       await db('tasks')
-        .update({ status: newStatus, completed_at: null, actual_hours: null })
+.update({ status: newStatus, completed_at: newStatus === 'Done' ? new Date().toISOString() : null, actual_hours: null, completed_by: newStatus === 'Done' ? currentUserId : null })
         .eq('id', taskId)
       setLogoSpin(null)
     } catch (err) {
@@ -291,12 +291,12 @@ export default function BoardPage() {
       setTasks((prev) =>
         prev.map((t) =>
           t.id === task.id
-            ? { ...t, status: 'Todo' as const, completed_at: null, actual_hours: null, completion_note: null }
+            ? { ...t, status: 'Todo' as const, completed_at: null, actual_hours: null, completion_note: null, completed_by: null }
             : t
         )
       )
       await db('tasks')
-        .update({ status: 'Todo', completed_at: null, actual_hours: null, completion_note: null })
+        .update({ status: 'Todo', completed_at: null, actual_hours: null, completion_note: null, completed_by: null })
         .eq('id', task.id)
       setLogoSpin(null)
     } catch (err) {
@@ -336,6 +336,7 @@ export default function BoardPage() {
           actual_hours:    hours,
           completed_at:    now,
           completion_note: note,
+          completed_by:    currentUserId,
         }
         setTasks((prev) => prev.map((t) => t.id === task.id ? updated : t))
         await db('tasks')
@@ -344,6 +345,7 @@ export default function BoardPage() {
             actual_hours:    hours,
             completed_at:    now,
             completion_note: note,
+            completed_by:    currentUserId,
           })
           .eq('id', task.id)
       }

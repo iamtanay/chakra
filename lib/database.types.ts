@@ -111,6 +111,7 @@ export type Database = {
           next_due_date: string | null
           current_streak: number
           completion_note: string | null
+          completed_by: string | null
         }
         Insert: {
           id?: string
@@ -157,6 +158,7 @@ export type Database = {
           next_due_date?: string | null
           current_streak?: number
           completion_note?: string | null
+          completed_by?: string | null
         }
         Update: {
           id?: string
@@ -203,6 +205,7 @@ export type Database = {
           next_due_date?: string | null
           current_streak?: number
           completion_note?: string | null
+          completed_by?: string | null
         }
         Relationships: [
           {

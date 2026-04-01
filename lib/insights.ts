@@ -188,7 +188,8 @@ export function getDriftSuggestion(
 export function generateReportData(
   tasks: Task[],
   projects: Project[],
-  timeRange: 'month' | 'quarter' | 'year'
+  timeRange: 'month' | 'quarter' | 'year',
+  currentUserId?: string | null,
 ): ReportData {
   const now = new Date()
   const startDate = new Date()
@@ -203,7 +204,11 @@ export function generateReportData(
 
   const completedTasks = tasks.filter((task) => {
     if (!task.completed_at) return false
-    return new Date(task.completed_at) >= startDate
+    if (new Date(task.completed_at) < startDate) return false
+    // Only count tasks the current user personally completed.
+    // Falls back to showing all if currentUserId is unavailable (e.g. loading).
+    if (currentUserId && task.completed_by !== currentUserId) return false
+    return true
   })
 
   const tasksCompleted = completedTasks.length
@@ -272,7 +277,10 @@ export function generateReportData(
   const categoriesUsed = new Set(completedTasks.map((t) => t.category)).size
 
   // ── Drift (computed from ALL completed tasks for maximum signal) ──────────
-  const driftByCategory = computeDrift(tasks.filter((t) => t.status === 'Done'))
+  // Drift: use all-time tasks completed by the current user for maximum signal
+  const driftByCategory = computeDrift(
+    tasks.filter((t) => t.status === 'Done' && (!currentUserId || t.completed_by === currentUserId))
+  )
 
   // ── Insights ──────────────────────────────────────────────────────────────
   const insights: string[] = []
