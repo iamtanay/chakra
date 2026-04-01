@@ -4,9 +4,10 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Logo } from '@/components/ui/Logo'
-import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Star, Sun, Moon } from 'lucide-react'
+import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Star, Sun, Moon, Pencil, Check, X } from 'lucide-react'
 import type { Project } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
+import { useState, useEffect } from 'react'
 
 interface SidebarProps {
   projects: Project[]
@@ -27,10 +28,55 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
   const supabase = createClient()
   const { theme, toggle } = useTheme()
 
+  const [displayName,    setDisplayName]    = useState<string>('')
+  const [email,          setEmail]          = useState<string>('')
+  const [editingName,    setEditingName]    = useState(false)
+  const [nameInput,      setNameInput]      = useState('')
+  const [savingName,     setSavingName]     = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      setEmail(user.email ?? '')
+      setDisplayName(user.user_metadata?.display_name ?? '')
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
   }
+
+  const startEdit = () => {
+    setNameInput(displayName)
+    setEditingName(true)
+  }
+
+  const cancelEdit = () => {
+    setEditingName(false)
+    setNameInput('')
+  }
+
+  const saveName = async () => {
+    const trimmed = nameInput.trim()
+    if (!trimmed || trimmed === displayName) { cancelEdit(); return }
+    setSavingName(true)
+    const { error } = await supabase.auth.updateUser({
+      data: { display_name: trimmed },
+    })
+    if (!error) setDisplayName(trimmed)
+    setSavingName(false)
+    setEditingName(false)
+  }
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') saveName()
+    if (e.key === 'Escape') cancelEdit()
+  }
+
+  // Avatar initial — first letter of display name or email
+  const avatarChar = (displayName || email).charAt(0).toUpperCase()
 
   const groupedProjects = {
     Work:     projects.filter((p) => p.type === 'Work'),
@@ -94,7 +140,6 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
                 style={{
                   color: active ? 'var(--amber)' : 'var(--text3)',
                   flexShrink: 0,
-                  // Fill the star when active for the Today tab
                   fill: (href === '/today' && active) ? 'var(--amber)' : 'none',
                 }}
                 className="transition-colors duration-150 group-hover:text-[var(--text2)]"
@@ -168,6 +213,90 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
 
       {/* Bottom section */}
       <div className="px-3 pt-3 pb-5 mt-auto flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+
+        {/* ── User identity ── */}
+        <div
+          className="flex items-center gap-2.5 px-3 py-2.5 mb-2 rounded-lg group"
+          style={{ minHeight: 44 }}
+        >
+          {/* Avatar */}
+          <div
+            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 font-syne font-700 text-xs"
+            style={{
+              background: 'var(--bg5)',
+              color:      'var(--amber)',
+              border:     '1px solid var(--border)',
+            }}
+          >
+            {avatarChar}
+          </div>
+
+          {/* Name / email + edit */}
+          <div className="flex-1 min-w-0">
+            {editingName ? (
+              <div className="flex items-center gap-1">
+                <input
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={handleNameKeyDown}
+                  autoFocus
+                  maxLength={40}
+                  className="flex-1 min-w-0 font-syne text-xs outline-none px-1.5 py-0.5 rounded-md"
+                  style={{
+                    background:  'var(--bg4)',
+                    border:      '1px solid var(--amber)',
+                    color:       'var(--text)',
+                    width:       '100%',
+                  }}
+                />
+                <button
+                  onClick={saveName}
+                  disabled={savingName}
+                  className="w-5 h-5 flex items-center justify-center rounded flex-shrink-0"
+                  style={{ color: 'var(--teal)' }}
+                >
+                  <Check size={11} strokeWidth={2.5} />
+                </button>
+                <button
+                  onClick={cancelEdit}
+                  className="w-5 h-5 flex items-center justify-center rounded flex-shrink-0"
+                  style={{ color: 'var(--text3)' }}
+                >
+                  <X size={11} strokeWidth={2.5} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="min-w-0">
+                  {displayName ? (
+                    <p className="font-syne text-xs font-600 truncate" style={{ color: 'var(--text2)' }}>
+                      {displayName}
+                    </p>
+                  ) : (
+                    <p className="font-mono text-xs truncate" style={{ color: 'var(--text3)' }}>
+                      {email}
+                    </p>
+                  )}
+                  {displayName && (
+                    <p className="font-mono text-xs truncate leading-tight" style={{ color: 'var(--text3)', fontSize: 10 }}>
+                      {email}
+                    </p>
+                  )}
+                </div>
+                {/* Edit pencil — only visible on group hover */}
+                <button
+                  onClick={startEdit}
+                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-0.5 rounded"
+                  style={{ color: 'var(--text3)' }}
+                  title="Edit display name"
+                >
+                  <Pencil size={10} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Theme toggle */}
         <button
           onClick={toggle}

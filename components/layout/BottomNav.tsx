@@ -2,17 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, FolderKanban, BarChart3, Star, Settings, Sun, Moon, LogOut, X } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, BarChart3, Star, Settings, Sun, Moon, LogOut, X, Pencil, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import { NotificationToggle } from '@/components/ui/NotificationToggle'
 
 const NAV_ITEMS = [
-  { href: '/',         label: 'Board',   Icon: LayoutDashboard },
-  { href: '/today',    label: 'Today',   Icon: Star            },
+  { href: '/',         label: 'Board',    Icon: LayoutDashboard },
+  { href: '/today',    label: 'Today',    Icon: Star            },
   { href: '/projects', label: 'Projects', Icon: FolderKanban   },
-  { href: '/reports',  label: 'Reports', Icon: BarChart3       },
+  { href: '/reports',  label: 'Reports',  Icon: BarChart3       },
 ]
 
 export function BottomNav() {
@@ -23,6 +23,21 @@ export function BottomNav() {
 
   const [settingsOpen,  setSettingsOpen]  = useState(false)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
+
+  const [displayName, setDisplayName] = useState<string>('')
+  const [email,       setEmail]       = useState<string>('')
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput,   setNameInput]   = useState('')
+  const [savingName,  setSavingName]  = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      setEmail(user.email ?? '')
+      setDisplayName(user.user_metadata?.display_name ?? '')
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSettingsOpen(false) }
@@ -40,15 +55,44 @@ export function BottomNav() {
     router.push('/login')
   }
 
+  const startEdit = () => {
+    setNameInput(displayName)
+    setEditingName(true)
+  }
+
+  const cancelEdit = () => {
+    setEditingName(false)
+    setNameInput('')
+  }
+
+  const saveName = async () => {
+    const trimmed = nameInput.trim()
+    if (!trimmed || trimmed === displayName) { cancelEdit(); return }
+    setSavingName(true)
+    const { error } = await supabase.auth.updateUser({
+      data: { display_name: trimmed },
+    })
+    if (!error) setDisplayName(trimmed)
+    setSavingName(false)
+    setEditingName(false)
+  }
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') saveName()
+    if (e.key === 'Escape') cancelEdit()
+  }
+
+  const avatarChar = (displayName || email).charAt(0).toUpperCase()
+
   return (
     <>
       <nav
         className="fixed bottom-0 left-0 right-0 md:hidden z-50"
         style={{
-          background:    'var(--bg2)',
+          background:     'var(--bg2)',
           backdropFilter: 'blur(20px)',
-          borderTop:     '1px solid var(--border)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
+          borderTop:      '1px solid var(--border)',
+          paddingBottom:  'env(safe-area-inset-bottom)',
         }}
       >
         <div className="flex items-center">
@@ -71,7 +115,6 @@ export function BottomNav() {
                   size={20}
                   style={{
                     color: active ? 'var(--amber)' : 'var(--text3)',
-                    // Today tab: fill the star icon when active for extra visibility
                     fill:  (href === '/today' && active) ? 'var(--amber)' : 'none',
                   }}
                 />
@@ -121,24 +164,109 @@ export function BottomNav() {
               paddingBottom: 'env(safe-area-inset-bottom)',
             }}
           >
+            {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 rounded-full" style={{ background: 'var(--bg5)' }} />
             </div>
 
+            {/* ── User identity header ── */}
             <div
-              className="flex items-center justify-between px-5 py-3"
+              className="flex items-center justify-between px-5 py-4"
               style={{ borderBottom: '1px solid var(--border)' }}
             >
-              <h2 className="font-syne font-700 text-base" style={{ color: 'var(--text)' }}>
-                Settings
-              </h2>
-              <button
-                onClick={() => setSettingsOpen(false)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{ color: 'var(--text3)', background: 'var(--bg3)' }}
-              >
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {/* Avatar */}
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-syne font-700 text-base"
+                  style={{
+                    background: 'var(--bg4)',
+                    color:      'var(--amber)',
+                    border:     '1px solid var(--border)',
+                  }}
+                >
+                  {avatarChar}
+                </div>
+
+                {/* Name + email */}
+                <div className="flex-1 min-w-0">
+                  {editingName ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={nameInput}
+                        onChange={(e) => setNameInput(e.target.value)}
+                        onKeyDown={handleNameKeyDown}
+                        autoFocus
+                        maxLength={40}
+                        placeholder="Your name"
+                        className="flex-1 min-w-0 font-syne text-sm outline-none px-2 py-1 rounded-lg"
+                        style={{
+                          background: 'var(--bg4)',
+                          border:     '1px solid var(--amber)',
+                          color:      'var(--text)',
+                        }}
+                      />
+                      <button
+                        onClick={saveName}
+                        disabled={savingName}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0"
+                        style={{ background: 'var(--bg4)', color: 'var(--teal)' }}
+                      >
+                        <Check size={14} strokeWidth={2.5} />
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0"
+                        style={{ background: 'var(--bg4)', color: 'var(--text3)' }}
+                      >
+                        <X size={14} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="min-w-0 flex-1">
+                        {displayName ? (
+                          <>
+                            <p className="font-syne font-700 text-sm truncate" style={{ color: 'var(--text)' }}>
+                              {displayName}
+                            </p>
+                            <p className="font-mono text-xs truncate" style={{ color: 'var(--text3)' }}>
+                              {email}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-mono text-xs truncate" style={{ color: 'var(--text2)' }}>
+                              {email}
+                            </p>
+                            <p className="font-mono text-xs" style={{ color: 'var(--text3)', opacity: 0.7 }}>
+                              Tap to add a display name
+                            </p>
+                          </>
+                        )}
+                      </div>
+                      <button
+                        onClick={startEdit}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0 transition-all duration-150"
+                        style={{ background: 'var(--bg4)', color: 'var(--text3)' }}
+                        title="Edit display name"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Close button */}
+              {!editingName && (
+                <button
+                  onClick={() => setSettingsOpen(false)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center ml-3 flex-shrink-0"
+                  style={{ color: 'var(--text3)', background: 'var(--bg3)' }}
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
 
             <div className="p-5 space-y-3">
@@ -165,8 +293,8 @@ export function BottomNav() {
                     className="absolute top-1 w-4 h-4 rounded-full transition-all duration-300"
                     style={{
                       background: '#fff',
-                      left: theme === 'light' ? '28px' : '4px',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                      left:       theme === 'light' ? '28px' : '4px',
+                      boxShadow:  '0 1px 3px rgba(0,0,0,0.3)',
                     }}
                   />
                 </div>
