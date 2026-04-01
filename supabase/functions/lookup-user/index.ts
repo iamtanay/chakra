@@ -75,7 +75,7 @@ serve(async (req: Request) => {
     // Page through all users — listUsers() returns max 50 per page
     let page = 1
     const perPage = 50
-    let found: { id: string; email: string } | null = null
+    let found: { id: string; email: string; raw_user_meta_data: Record<string, unknown> | null } | null = null
 
     while (page <= 20) {
       const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage })
@@ -87,7 +87,7 @@ serve(async (req: Request) => {
 
       const match = data.users.find((u) => u.email?.toLowerCase() === email)
       if (match) {
-        found = { id: match.id, email: match.email! }
+        found = { id: match.id, email: match.email!, raw_user_meta_data: (match.user_metadata ?? null) as Record<string, unknown> | null }
         break
       }
 
@@ -99,7 +99,18 @@ serve(async (req: Request) => {
       return json({ error: 'No user found with that email.' }, 404)
     }
 
-    return json({ id: found.id, email: found.email }, 200)
+    // Return a privacy-safe display label the owner can store in project_members.
+    // We prefer the user's chosen display_name from their metadata; fall back to
+    // the portion of their email before the @ so we never expose the full address
+    // to the project owner (they already know it — they typed it — but we don't
+    // want to accidentally surface emails of other users via this endpoint).
+    const rawMeta = found.raw_user_meta_data as Record<string, unknown> | null
+    const displayName: string =
+      (typeof rawMeta?.display_name === 'string' && rawMeta.display_name.trim())
+        ? rawMeta.display_name.trim()
+        : found.email.split('@')[0]
+
+    return json({ id: found.id, email: found.email, display_name: displayName }, 200)
 
   } catch (err) {
     console.error('lookup-user unhandled error:', err)

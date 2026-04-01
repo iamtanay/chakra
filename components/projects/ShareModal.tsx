@@ -17,8 +17,8 @@ interface ShareModalProps {
   project: Project | null
 }
 
-interface MemberWithEmail extends ProjectMember {
-  email: string
+interface MemberWithDisplay extends ProjectMember {
+  display_name: string
 }
 
 function fieldLabel(text: string) {
@@ -52,7 +52,7 @@ function RoleBadge({ role }: { role: MemberRole }) {
 export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
   const [email,         setEmail]         = useState('')
   const [role,          setRole]          = useState<MemberRole>('editor')
-  const [members,       setMembers]       = useState<MemberWithEmail[]>([])
+  const [members,       setMembers]       = useState<MemberWithDisplay[]>([])
   const [loading,       setLoading]       = useState(false)
   const [loadingMembers, setLoadingMembers] = useState(false)
   const [error,         setError]         = useState<string | null>(null)
@@ -81,9 +81,8 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
     try {
       const supabase = createClient()
 
-      // Fetch members for this project.
-      // The fixed members_select RLS policy now allows the owner to see all
-      // member rows for their projects (previously returned 0 rows for owners).
+      // Fetch members for this project. The members_select RLS policy allows
+      // the owner to see all member rows for their projects.
       const { data, error: fetchError } = await db('project_members')
         .select('*')
         .eq('project_id', project.id)
@@ -95,14 +94,15 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
         return
       }
 
-      // Resolve emails: prefer sessionStorage cache (populated when we added them),
-      // fall back to a label with the shared date so the row is never blank.
-      const withEmails: MemberWithEmail[] = (data as ProjectMember[]).map((m) => ({
+      // display_name is persisted in the DB at insert time (from the Edge Function).
+      // No sessionStorage needed — works across page reloads and browsers.
+      // Fall back to 'Shared user' only for legacy rows (empty display_name).
+      const withDisplay: MemberWithDisplay[] = (data as (ProjectMember & { display_name?: string })[]).map((m) => ({
         ...m,
-        email: sessionStorage.getItem(`chakra_user_email_${m.user_id}`) ?? 'Shared user',
+        display_name: m.display_name?.trim() || 'Shared user',
       }))
 
-      setMembers(withEmails)
+      setMembers(withDisplay)
     } catch (err) {
       console.error('Error loading members:', err)
     } finally {
@@ -160,6 +160,7 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
       }
 
       const targetUserId: string = payload.id
+      const memberDisplayName: string = payload.display_name || trimmedEmail.split('@')[0]
 
       // Check if already a member
       const alreadyMember = members.some((m) => m.user_id === targetUserId)
@@ -168,12 +169,16 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
         return
       }
 
-      // Insert into project_members
+      // Insert into project_members, storing a privacy-safe display name.
+      // The display_name comes from the invited user's own profile metadata
+      // (or falls back to their email prefix). It is written by the project
+      // owner who already knows the address they typed — no extra data exposed.
       const { error: insertError } = await db('project_members')
         .insert([{
-          project_id: project.id,
-          user_id:    targetUserId,
+          project_id:   project.id,
+          user_id:      targetUserId,
           role,
+          display_name: memberDisplayName,
         }])
 
       if (insertError) {
@@ -186,19 +191,16 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
         return
       }
 
-      // Cache their email client-side so we can show it in the member list
-      sessionStorage.setItem(`chakra_user_email_${targetUserId}`, trimmedEmail)
-
-      const newMember: MemberWithEmail = {
-        project_id: project.id,
-        user_id:    targetUserId,
+      const newMember: MemberWithDisplay = {
+        project_id:   project.id,
+        user_id:      targetUserId,
         role,
-        shared_at:  new Date().toISOString(),
-        email:      trimmedEmail,
+        shared_at:    new Date().toISOString(),
+        display_name: memberDisplayName,
       }
       setMembers((prev) => [...prev, newMember])
       setEmail('')
-      setSuccess(`${trimmedEmail} now has ${role} access.`)
+      setSuccess(`${memberDisplayName} now has ${role} access.`)
     } catch (err) {
       console.error('Share error:', err)
       setError('Something went wrong. Please try again.')
@@ -207,7 +209,7 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
     }
   }
 
-  const handleRoleChange = async (member: MemberWithEmail, newRole: MemberRole) => {
+  const handleRoleChange = async (member: MemberWithDisplay, newRole: MemberRole) => {
     if (!project) return
     // Optimistic update
     setMembers((prev) =>
@@ -228,7 +230,7 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
     }
   }
 
-  const handleRemove = async (member: MemberWithEmail) => {
+  const handleRemove = async (member: MemberWithDisplay) => {
     if (!project) return
     if (removingId === member.user_id) {
       // Confirmed — proceed
@@ -389,8 +391,8 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
                       color:      'var(--amber)',
                     }}
                   >
-                    {member.email !== 'Shared user'
-                      ? member.email.charAt(0).toUpperCase()
+                    {member.display_name !== 'Shared user'
+                      ? member.display_name.charAt(0).toUpperCase()
                       : '?'}
                   </div>
 
@@ -400,7 +402,7 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
                       className="font-syne text-sm font-600 truncate"
                       style={{ color: 'var(--text)' }}
                     >
-                      {member.email}
+                      {member.display_name}
                     </p>
                     <p className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
                       Added {new Date(member.shared_at).toLocaleDateString('en-US', {

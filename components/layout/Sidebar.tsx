@@ -115,7 +115,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
       </div>
 
       {/* Nav */}
-      <nav className="px-3 pt-4 space-y-1">
+      <nav className="px-3 pt-3 space-y-1">
         {NAV_ITEMS.map(({ href, label, Icon }) => {
           const active = pathname === href
           return (
@@ -158,7 +158,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
       {/* Projects */}
       {projects.length > 0 && (
         <div
-          className="mt-5 mx-3 pt-4 flex-1 overflow-y-auto"
+          className="mt-3 mx-3 pt-3 flex-1 overflow-y-auto"
           style={{ borderTop: '1px solid var(--border)' }}
         >
           <button
@@ -212,16 +212,16 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
       )}
 
       {/* Bottom section */}
-      <div className="px-3 pt-3 pb-5 mt-auto flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+      <div className="px-3 pt-2 pb-3 mt-auto flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
 
         {/* ── User identity ── */}
         <div
-          className="flex items-center gap-2.5 px-3 py-2.5 mb-2 rounded-lg group"
-          style={{ minHeight: 44 }}
+          className="flex items-center gap-2.5 px-3 py-1.5 mb-1 rounded-lg group"
+          style={{ minHeight: 36 }}
         >
           {/* Avatar */}
           <div
-            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 font-syne font-700 text-xs"
+            className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 font-syne font-700 text-xs"
             style={{
               background: 'var(--bg5)',
               color:      'var(--amber)',
@@ -300,17 +300,17 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         {/* Theme toggle */}
         <button
           onClick={toggle}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group mb-1"
+          className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all duration-150 group mb-0.5"
           style={{ color: 'var(--text3)' }}
         >
-          <div className="relative w-8 h-4 rounded-full flex-shrink-0 transition-colors duration-300"
+          <div className="relative w-7 h-3.5 rounded-full flex-shrink-0 transition-colors duration-300"
             style={{ background: theme === 'dark' ? 'var(--bg5)' : 'var(--amber)' }}
           >
             <div
-              className="absolute top-0.5 w-3 h-3 rounded-full transition-all duration-300"
+              className="absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all duration-300"
               style={{
                 background: theme === 'dark' ? 'var(--text3)' : '#fff',
-                left: theme === 'dark' ? '2px' : '18px',
+                left: theme === 'dark' ? '2px' : '16px',
               }}
             />
           </div>
@@ -325,7 +325,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         {/* Logout */}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group"
+          className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all duration-150 group"
           style={{ color: 'var(--text3)' }}
         >
           <LogOut
