@@ -80,7 +80,10 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
     setLoadingMembers(true)
     try {
       const supabase = createClient()
-      // Fetch members for this project
+
+      // Fetch members for this project.
+      // The fixed members_select RLS policy now allows the owner to see all
+      // member rows for their projects (previously returned 0 rows for owners).
       const { data, error: fetchError } = await db('project_members')
         .select('*')
         .eq('project_id', project.id)
@@ -92,28 +95,13 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
         return
       }
 
-      // For each member, look up their email via the edge function.
-      // We use a lightweight approach: call lookup-user for each user_id
-      // isn't possible (lookup-user takes email, not id). Instead we
-      // store the email client-side when we add them; for existing members
-      // we call the edge function to resolve them via a separate endpoint.
-      // Since we don't have a reverse lookup edge function, we fetch their
-      // email by calling the edge function with a known workaround:
-      // we load the members with their user_id and resolve emails via
-      // a custom RPC or accept that we show user_ids gracefully.
-      //
-      // Practical solution: after inserting we store email in local state.
-      // On fresh load we show "Member" with the shared_at date.
-      // This is correct — auth.users emails are intentionally not exposed
-      // to the client. We show what we know from the session/insert flow.
-      //
-      // For this app, we track emails in component state during the session.
-      // On reload, we label members as "Shared user" with their role + date.
+      // Resolve emails: prefer sessionStorage cache (populated when we added them),
+      // fall back to a label with the shared date so the row is never blank.
       const withEmails: MemberWithEmail[] = (data as ProjectMember[]).map((m) => ({
         ...m,
-        // email is stored in sessionStorage keyed by user_id during this session
-        email: sessionStorage.getItem(`chakra_user_email_${m.user_id}`) || 'Shared user',
+        email: sessionStorage.getItem(`chakra_user_email_${m.user_id}`) ?? 'Shared user',
       }))
+
       setMembers(withEmails)
     } catch (err) {
       console.error('Error loading members:', err)
