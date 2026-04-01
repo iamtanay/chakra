@@ -21,7 +21,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
 
   return (
     <div
-      className="fixed inset-0 z-50 md:hidden animate-fadeIn"
+      className="fixed inset-0 z-[70] md:hidden animate-fadeIn"
       style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
