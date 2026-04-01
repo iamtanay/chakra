@@ -139,9 +139,25 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
 
     try {
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
 
-      if (!session) {
+      // getUser() fetches a fresh verified token from Supabase — more reliable
+      // than getSession() which can return a stale or null session with SSR clients.
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
+      if (sessionError || !accessToken) {
+        // Fallback: try refreshing the session
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
+        if (refreshError || !refreshed.session?.access_token) {
+          setError('You must be logged in to share projects.')
+          return
+        }
+      }
+
+      const token = session?.access_token
+        ?? (await supabase.auth.refreshSession()).data.session?.access_token
+
+      if (!token) {
         setError('You must be logged in to share projects.')
         return
       }
@@ -153,7 +169,8 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
           method:  'POST',
           headers: {
             'Content-Type':  'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
+            'Authorization': `Bearer ${token}`,
+            'apikey':        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
           },
           body: JSON.stringify({ email: trimmedEmail }),
         }
