@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { AppShell } from '@/components/layout/AppShell'
 import { PageTopBar } from '@/components/layout/PageTopBar'
@@ -10,7 +9,7 @@ import { ProjectModal } from '@/components/projects/ProjectModal'
 import { ShareModal } from '@/components/projects/ShareModal'
 import { TaskModal } from '@/components/modals/TaskModal'
 import { Logo } from '@/components/ui/Logo'
-import { Plus, LayoutDashboard } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import type { Project, Task, ProjectMember } from '@/types'
 import type { NewTaskData } from '@/components/modals/TaskModal'
 
@@ -18,7 +17,6 @@ import type { NewTaskData } from '@/components/modals/TaskModal'
 const db = (table: string) => (createClient() as any).from(table)
 
 export default function ProjectsPage() {
-  const router = useRouter()
 
   const [projects,       setProjects]       = useState<Project[]>([])
   const [tasks,          setTasks]          = useState<Task[]>([])
@@ -234,43 +232,18 @@ export default function ProjectsPage() {
                       {list.map((p) => {
                         const s = getStats(p.id)
                         return (
-                          <div key={p.id} className="relative group/card">
-                            <ProjectCard
-                              project={p}
-                              taskCount={s.total}
-                              completedCount={s.completed}
-                              isOwner={isOwnerOf(p)}
-                              onEdit={(proj) => {
-                                setEditingProject(proj)
-                                setShowModal(true)
-                              }}
-                              onShare={(proj) => setSharingProject(proj)}
-                            />
-                            {/* Open in Board button — appears on hover */}
-                            <button
-                              onClick={() => router.push(`/board?project=${p.id}`)}
-                              className="absolute bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-syne font-600 text-xs transition-all duration-150 opacity-0 group-hover/card:opacity-100"
-                              style={{
-                                background: 'var(--bg5)',
-                                color: 'var(--text2)',
-                                border: '1px solid var(--border)',
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'var(--amber-dim)'
-                                e.currentTarget.style.color = 'var(--amber)'
-                                e.currentTarget.style.borderColor = 'rgba(232,162,71,0.3)'
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'var(--bg5)'
-                                e.currentTarget.style.color = 'var(--text2)'
-                                e.currentTarget.style.borderColor = 'var(--border)'
-                              }}
-                              title="Open this project in Board view"
-                            >
-                              <LayoutDashboard size={12} />
-                              Open in Board
-                            </button>
-                          </div>
+                          <ProjectCard
+                            key={p.id}
+                            project={p}
+                            taskCount={s.total}
+                            completedCount={s.completed}
+                            isOwner={isOwnerOf(p)}
+                            onEdit={(proj) => {
+                              setEditingProject(proj)
+                              setShowModal(true)
+                            }}
+                            onShare={(proj) => setSharingProject(proj)}
+                          />
                         )
                       })}
                     </div>

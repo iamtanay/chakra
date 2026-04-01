@@ -1,7 +1,8 @@
 'use client'
 
 import type { Project } from '@/types'
-import { Pencil, Share2, Users } from 'lucide-react'
+import { Pencil, Share2, Users, LayoutDashboard } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 interface ProjectCardProps {
@@ -22,6 +23,7 @@ const typeColors: Record<string, string> = {
 export function ProjectCard({
   project, taskCount, completedCount, isOwner, onEdit, onShare,
 }: ProjectCardProps) {
+  const router  = useRouter()
   const [hovered, setHovered] = useState(false)
   const pct    = taskCount > 0 ? (completedCount / taskCount) * 100 : 0
   const tColor = typeColors[project.type] ?? 'var(--text3)'
@@ -92,10 +94,10 @@ export function ProjectCard({
             </div>
           </div>
 
-          {/* Action buttons — visible on hover */}
+          {/* Icon action buttons — Share & Edit, visible on hover (desktop) / always (mobile) */}
           <div
-            className="flex items-center gap-1 transition-all duration-150"
-            style={{ opacity: hovered ? 1 : 0 }}
+            className="flex items-center gap-1 transition-all duration-150 md:opacity-0"
+            style={{ opacity: hovered ? 1 : undefined }}
           >
             {/* Share button — owner only */}
             {isOwner && (
@@ -115,8 +117,6 @@ export function ProjectCard({
               </button>
             )}
 
-            {/* Edit/pencil button — owner and editor; hidden for viewers (isOwner=false means shared;
-                the parent page passes isOwner=true for editors too for this button — see page logic) */}
             <button
               onClick={() => onEdit(project)}
               className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150"
@@ -147,7 +147,7 @@ export function ProjectCard({
 
         {/* Progress bar */}
         <div
-          className="w-full h-1.5 rounded-full overflow-hidden"
+          className="w-full h-1.5 rounded-full overflow-hidden mb-4"
           style={{ background: 'var(--bg5)' }}
         >
           <div
@@ -158,6 +158,58 @@ export function ProjectCard({
               boxShadow: `0 0 8px ${project.color}60`,
             }}
           />
+        </div>
+
+        {/* Footer action row */}
+        <div
+          className="flex items-center justify-between pt-3"
+          style={{ borderTop: '1px solid var(--border)' }}
+        >
+          {/* Open in Board — primary CTA */}
+          <button
+            onClick={() => router.push(`/board?project=${project.id}`)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-syne font-600 text-xs transition-all duration-200"
+            style={{
+              background:   'var(--bg5)',
+              color:        'var(--text2)',
+              border:       '1px solid var(--border)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background    = 'var(--amber-dim)'
+              e.currentTarget.style.color         = 'var(--amber)'
+              e.currentTarget.style.borderColor   = 'rgba(232,162,71,0.3)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background    = 'var(--bg5)'
+              e.currentTarget.style.color         = 'var(--text2)'
+              e.currentTarget.style.borderColor   = 'var(--border)'
+            }}
+          >
+            <LayoutDashboard size={12} />
+            Open in Board
+          </button>
+
+          {/* Mobile-only icon actions (Share + Edit) — mirrored here since hover is unavailable */}
+          <div className="flex items-center gap-1 md:hidden">
+            {isOwner && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onShare(project) }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ background: 'var(--bg5)', color: 'var(--text3)', border: '1px solid var(--border)' }}
+                title="Share project"
+              >
+                <Share2 size={13} />
+              </button>
+            )}
+            <button
+              onClick={() => onEdit(project)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'var(--bg5)', color: 'var(--text3)', border: '1px solid var(--border)' }}
+              title="Edit project"
+            >
+              <Pencil size={13} />
+            </button>
+          </div>
         </div>
       </div>
     </div>
