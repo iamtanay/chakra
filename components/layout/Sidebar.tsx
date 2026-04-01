@@ -16,10 +16,10 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS = [
-  { href: '/',         label: 'Board',    Icon: LayoutDashboard },
+  { href: '/home',     label: 'Home',     Icon: BarChart3       },
+  { href: '/board',    label: 'Board',    Icon: LayoutDashboard },
   { href: '/today',    label: 'Today',    Icon: Star            },
   { href: '/projects', label: 'Projects', Icon: FolderKanban   },
-  { href: '/reports',  label: 'Reports',  Icon: BarChart3      },
 ]
 
 export function Sidebar({ projects, selectedProjectId, onProjectSelect }: SidebarProps) {
@@ -95,10 +95,11 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         overflow: 'hidden',
       }}
     >
-      {/* Logo */}
-      <div
+      {/* Logo — clicking always goes to /home */}
+      <Link
+        href="/home"
         className="flex items-center gap-3 px-5 py-5"
-        style={{ borderBottom: '1px solid var(--border)' }}
+        style={{ borderBottom: '1px solid var(--border)', textDecoration: 'none' }}
       >
         <Logo size={26} />
         <span
@@ -112,7 +113,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         >
           Chakra
         </span>
-      </div>
+      </Link>
 
       {/* Nav */}
       <nav className="px-3 pt-3 space-y-1">

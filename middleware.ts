@@ -31,8 +31,13 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Redirect root to /home (home/reports dashboard)
+  if (user && request.nextUrl.pathname === '/') {
+    return NextResponse.redirect(new URL('/home', request.url))
+  }
+
   if (user && request.nextUrl.pathname === '/login') {
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/home', request.url))
   }
 
   if (!user && request.nextUrl.pathname !== '/login') {

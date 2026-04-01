@@ -9,10 +9,10 @@ import { useTheme } from '@/hooks/useTheme'
 import { NotificationToggle } from '@/components/ui/NotificationToggle'
 
 const NAV_ITEMS = [
-  { href: '/',         label: 'Board',    Icon: LayoutDashboard },
+  { href: '/home',     label: 'Home',     Icon: BarChart3       },
+  { href: '/board',    label: 'Board',    Icon: LayoutDashboard },
   { href: '/today',    label: 'Today',    Icon: Star            },
   { href: '/projects', label: 'Projects', Icon: FolderKanban   },
-  { href: '/reports',  label: 'Reports',  Icon: BarChart3       },
 ]
 
 export function BottomNav() {
