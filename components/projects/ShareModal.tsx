@@ -140,25 +140,13 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
     try {
       const supabase = createClient()
 
-      // getUser() fetches a fresh verified token from Supabase — more reliable
-      // than getSession() which can return a stale or null session with SSR clients.
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      const accessToken = session?.access_token
+      // With @supabase/ssr the session token lives in cookies managed by middleware.
+      // getSession() reads from storage and is the correct call in browser clients.
+      // If it returns null the user's cookie has expired — ask them to re-login.
+      const { data: { session } } = await supabase.auth.getSession()
 
-      if (sessionError || !accessToken) {
-        // Fallback: try refreshing the session
-        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession()
-        if (refreshError || !refreshed.session?.access_token) {
-          setError('You must be logged in to share projects.')
-          return
-        }
-      }
-
-      const token = session?.access_token
-        ?? (await supabase.auth.refreshSession()).data.session?.access_token
-
-      if (!token) {
-        setError('You must be logged in to share projects.')
+      if (!session?.access_token) {
+        setError('Session expired. Please refresh the page and try again.')
         return
       }
 
@@ -169,7 +157,7 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
           method:  'POST',
           headers: {
             'Content-Type':  'application/json',
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'apikey':        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
           },
           body: JSON.stringify({ email: trimmedEmail }),
