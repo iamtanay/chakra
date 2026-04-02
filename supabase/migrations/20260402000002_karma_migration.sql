@@ -37,3 +37,8 @@ create policy "Users manage own karma logs"
 -- Indexes for fast date-range queries
 create index if not exists karma_logs_user_date on karma_logs(user_id, log_date desc);
 create index if not exists karma_rituals_user_pos on karma_rituals(user_id, position);
+
+-- Add unique constraint --
+
+alter table karma_rituals
+  add constraint karma_rituals_user_label_unique unique (user_id, label);

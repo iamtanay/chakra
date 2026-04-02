@@ -72,8 +72,11 @@ function computeStreak(
   const byDate: Record<string, Set<string>> = {}
   for (const log of logs) {
     if (!ritualIds.has(log.ritual_id)) continue
-    if (!byDate[log.log_date]) byDate[log.log_date] = new Set()
-    byDate[log.log_date].add(log.ritual_id)
+    const dateKey = log.log_date
+    if (!byDate[dateKey]) {
+      byDate[dateKey] = new Set<string>()
+    }
+    byDate[dateKey]!.add(log.ritual_id)
   }
   const completeDates = new Set(
     Object.entries(byDate)
