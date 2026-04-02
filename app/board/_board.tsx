@@ -378,7 +378,7 @@ export default function BoardPage() {
 
   // Derive a label for the top bar: selected project name or "Board"
   const selectedProject = projects.find((p) => p.id === selectedProjectId)
-  const topBarTitle     = selectedProject ? selectedProject.name : 'Board'
+  const topBarTitle     = 'Board'
 
   return (
     <AppShell
