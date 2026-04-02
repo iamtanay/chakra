@@ -188,18 +188,26 @@ export function getDriftSuggestion(
 export function generateReportData(
   tasks: Task[],
   projects: Project[],
-  timeRange: 'month' | 'quarter' | 'year',
+  timeRange: 'week' | 'month' | 'year',
   currentUserId?: string | null,
 ): ReportData {
   const now = new Date()
   const startDate = new Date()
 
-  if (timeRange === 'month') {
-    startDate.setMonth(now.getMonth() - 1)
-  } else if (timeRange === 'quarter') {
-    startDate.setMonth(now.getMonth() - 3)
+  if (timeRange === 'week') {
+    // Monday of the current week
+    const day = now.getDay() // 0=Sun, 1=Mon ... 6=Sat
+    const diffToMonday = (day === 0 ? -6 : 1 - day)
+    startDate.setDate(now.getDate() + diffToMonday)
+    startDate.setHours(0, 0, 0, 0)
+  } else if (timeRange === 'month') {
+    // 1st of current month
+    startDate.setDate(1)
+    startDate.setHours(0, 0, 0, 0)
   } else {
-    startDate.setFullYear(now.getFullYear() - 1)
+    // Jan 1 of current year
+    startDate.setMonth(0, 1)
+    startDate.setHours(0, 0, 0, 0)
   }
 
   const completedTasks = tasks.filter((task) => {
@@ -292,8 +300,8 @@ export function generateReportData(
     )
 
     const rangeLabel =
-      timeRange === 'month' ? 'this month'
-      : timeRange === 'quarter' ? 'this quarter'
+      timeRange === 'week' ? 'this week'
+      : timeRange === 'month' ? 'this month'
       : 'this year'
 
     insights.push(

@@ -41,7 +41,7 @@ export default function HomePage() {
   const [projects,      setProjects]      = useState<Project[]>([])
   const [tasks,         setTasks]         = useState<Task[]>([])
   const [loading,       setLoading]       = useState(true)
-  const [timeRange,     setTimeRange]     = useState<'month' | 'quarter' | 'year'>('month')
+  const [timeRange,     setTimeRange]     = useState<'week' | 'month' | 'year'>('week')
   const [displayName,   setDisplayName]   = useState('')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [logoSpin,      setLogoSpin]      = useState<'once' | 'fast' | 'loop' | null>('once')
@@ -111,7 +111,7 @@ export default function HomePage() {
   const statCards = [
     { label: 'Tasks done',   value: report.tasksCompleted,   color: 'var(--teal)',   dim: 'var(--teal-dim)'   },
     { label: 'Hours logged', value: `${report.totalHours}h`, color: 'var(--amber)',  dim: 'var(--amber-dim)'  },
-    { label: 'Spaces',     value: report.projectsActive,   color: 'var(--violet)', dim: 'var(--violet-dim)' },
+    { label: 'Projects',     value: report.projectsActive,   color: 'var(--violet)', dim: 'var(--violet-dim)' },
     { label: 'Categories',   value: report.categoriesUsed,   color: 'var(--rose)',   dim: 'var(--rose-dim)'   },
   ]
 
@@ -133,9 +133,9 @@ export default function HomePage() {
       dim:   'var(--teal-dim)',
     },
     {
-      href:  '/spaces',
-      label: 'Spaces',
-      sub:   'Manage your spaces',
+      href:  '/projects',
+      label: 'Projects',
+      sub:   'Manage your projects',
       Icon:  FolderKanban,
       color: 'var(--violet)',
       dim:   'var(--violet-dim)',
@@ -150,7 +150,7 @@ export default function HomePage() {
         logoSpin={logoSpin}
         actions={
           <PillToggle
-            options={['month', 'quarter', 'year'] as const}
+            options={['week', 'month', 'year'] as const}
             value={timeRange}
             onChange={setTimeRange}
           />
@@ -276,10 +276,10 @@ export default function HomePage() {
                   className="font-mono text-xs uppercase tracking-widest"
                   style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
                 >
-                  Your Spaces
+                  Your Projects
                 </h2>
                 <Link
-                  href="/spaces"
+                  href="/projects"
                   className="font-mono text-xs transition-colors duration-150"
                   style={{ color: 'var(--text3)' }}
                   onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--amber)')}
@@ -376,7 +376,7 @@ export default function HomePage() {
                 ))}
               </div>
 
-              {/* By Project */}
+              {/* By Space */}
               {report.byProject.length > 0 && (
                 <div
                   className="rounded-2xl p-6"
@@ -386,7 +386,7 @@ export default function HomePage() {
                     className="font-mono text-xs uppercase tracking-widest mb-5"
                     style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
                   >
-                    By Project
+                    By Space
                   </h2>
                   <div className="space-y-4">
                     {report.byProject.map((p) => {
@@ -525,7 +525,7 @@ export default function HomePage() {
                     className="font-mono text-xs uppercase tracking-widest mb-4"
                     style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
                   >
-                    Reflections
+                    Insights
                   </h2>
                   <div className="space-y-3">
                     {report.insights.map((insight, i) => (
@@ -558,7 +558,7 @@ export default function HomePage() {
                     <table className="w-full">
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                          {['Title', 'Project', 'Category', 'Est.', 'Actual', 'Date'].map((h) => (
+                          {['Title', 'Space', 'Category', 'Est.', 'Actual', 'Date'].map((h) => (
                             <th
                               key={h}
                               className="text-left py-3 px-4 font-mono text-xs"

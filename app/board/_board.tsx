@@ -425,10 +425,10 @@ export default function BoardPage() {
         {!hasProjects ? (
           <div className="flex flex-col items-center justify-center h-full gap-4">
             <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
-              No spaces yet.
+              No projects yet.
             </p>
             <a
-              href="/spaces"
+              href="/projects"
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-syne font-600 text-sm"
               style={{ background: 'var(--amber)', color: '#0a0a0a' }}
             >

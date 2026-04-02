@@ -230,7 +230,7 @@ export function TaskCard({
 
   return (
     <div
-      onClick={() => onCardClick(task)}
+      onClick={() => { if (pendingUndo) { setPendingUndo(false); return } onCardClick(task) }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={`relative rounded-xl cursor-pointer card-lift ${isDragging ? 'opacity-30 scale-95' : ''}`}
@@ -440,7 +440,8 @@ export function TaskCard({
       <button
         onClick={handleActionClick}
         onTouchEnd={(e) => {
-          // Prevent the synthetic click from also firing on mobile
+          // preventDefault stops the browser synthesising a click event after touchend
+          e.preventDefault()
           e.stopPropagation()
           handleActionClick(e)
         }}

@@ -206,11 +206,12 @@ export default function TodayPage() {
           status:          'Done',
           actual_hours:    hours,
           completed_at:    now,
+          completed_by:    userId,
           completion_note: note,
         }
         setTasks((prev) => prev.map((t) => t.id === task.id ? updated : t))
         await db('tasks')
-          .update({ status: 'Done', actual_hours: hours, completed_at: now, completion_note: note })
+          .update({ status: 'Done', actual_hours: hours, completed_at: now, completed_by: userId, completion_note: note })
           .eq('id', task.id)
       }
 
