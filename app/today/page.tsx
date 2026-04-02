@@ -9,6 +9,7 @@ import { TaskModal, type NewTaskData } from '@/components/modals/TaskModal'
 import { CompleteModal } from '@/components/modals/CompleteModal'
 import { Logo } from '@/components/ui/Logo'
 import { Check, RefreshCw, Star, Flame } from 'lucide-react'
+import { KarmaWidget } from '@/components/karma/KarmaWidget'
 import type { Task, Project, Status } from '@/types'
 import {
   advanceRecurringCycle,
@@ -62,6 +63,7 @@ export default function TodayPage() {
   const [editingTask,    setEditingTask]    = useState<Task | null>(null)
   const [modalOpen,      setModalOpen]      = useState(false)
   const [completingTask, setCompletingTask] = useState<Task | null>(null)
+  const [userId,         setUserId]         = useState<string | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setLogoSpin(null), 600)
@@ -71,6 +73,8 @@ export default function TodayPage() {
   const loadData = async () => {
     try {
       setLoading(true)
+      const { data: { user } } = await (createClient() as any).auth.getUser()
+      setUserId(user?.id ?? null)
       const [{ data: pd, error: pe }, { data: td, error: te }] = await Promise.all([
         db('projects').select('*'),
         db('tasks').select('*'),
@@ -242,6 +246,13 @@ export default function TodayPage() {
 
       {/* Body */}
       <div className="flex-1 overflow-auto p-4 md:p-6">
+        {/* Daily Karma rituals */}
+        {userId && (
+          <div className="max-w-2xl mx-auto mb-6">
+            <KarmaWidget userId={userId} compact={true} />
+          </div>
+        )}
+
         {totalToday === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>

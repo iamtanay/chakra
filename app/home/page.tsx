@@ -6,6 +6,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { generateReportData, driftLabel } from '@/lib/insights'
 import { AppShell } from '@/components/layout/AppShell'
+import { KarmaWidget } from '@/components/karma/KarmaWidget'
 import { PageTopBar } from '@/components/layout/PageTopBar'
 import { PillToggle } from '@/components/ui/PillToggle'
 import Link from 'next/link'
@@ -230,6 +231,11 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+
+          {/* ── Karma widget ── */}
+          {currentUserId && (
+            <KarmaWidget userId={currentUserId} compact={true} />
+          )}
 
           {/* ── Quick links ── */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

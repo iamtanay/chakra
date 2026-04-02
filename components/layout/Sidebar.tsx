@@ -4,10 +4,10 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Logo } from '@/components/ui/Logo'
-import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Star, Sun, Moon, SunMoon, Pencil, Check, X } from 'lucide-react'
+import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Star, Sun, Moon, SunMoon, Pencil, Check, X, ChevronUp } from 'lucide-react'
 import type { Project } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface SidebarProps {
   projects: Project[]
@@ -33,6 +33,8 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
   const [editingName,    setEditingName]    = useState(false)
   const [nameInput,      setNameInput]      = useState('')
   const [savingName,     setSavingName]     = useState(false)
+  const [userMenuOpen,   setUserMenuOpen]   = useState(false)
+  const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -42,6 +44,17 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!userMenuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [userMenuOpen])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -233,136 +246,131 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         </div>
       )}
 
-      {/* Bottom section */}
+      {/* Bottom section — collapsed user trigger */}
       <div className="px-3 pt-2 pb-3 mt-auto flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+        <div ref={userMenuRef} className="relative">
 
-        {/* ── User identity ── */}
-        <div
-          className="flex items-center gap-2.5 px-3 py-1.5 mb-1 rounded-lg group"
-          style={{ minHeight: 36 }}
-        >
-          {/* Avatar */}
-          <div
-            className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 font-syne font-700 text-xs"
+          {/* User popup — appears above the trigger */}
+          {userMenuOpen && (
+            <div
+              className="absolute bottom-full left-0 right-0 mb-2 rounded-2xl overflow-hidden"
+              style={{
+                background: 'var(--bg2)',
+                border: '1px solid var(--border2)',
+                boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
+              }}
+            >
+              {/* Name edit row */}
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                {editingName ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      onKeyDown={handleNameKeyDown}
+                      autoFocus
+                      maxLength={40}
+                      className="flex-1 min-w-0 font-syne text-xs outline-none px-2 py-1.5 rounded-lg"
+                      style={{ background: 'var(--bg4)', border: '1px solid var(--amber)', color: 'var(--text)' }}
+                    />
+                    <button onClick={saveName} disabled={savingName}
+                      className="w-6 h-6 flex items-center justify-center rounded-lg flex-shrink-0"
+                      style={{ color: 'var(--teal)', background: 'var(--bg4)' }}>
+                      <Check size={11} strokeWidth={2.5} />
+                    </button>
+                    <button onClick={cancelEdit}
+                      className="w-6 h-6 flex items-center justify-center rounded-lg flex-shrink-0"
+                      style={{ color: 'var(--text3)', background: 'var(--bg4)' }}>
+                      <X size={11} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 group/name">
+                    <div className="flex-1 min-w-0">
+                      {displayName && (
+                        <p className="font-syne text-xs font-600 truncate" style={{ color: 'var(--text2)' }}>{displayName}</p>
+                      )}
+                      <p className="font-mono truncate" style={{ color: 'var(--text3)', fontSize: 10 }}>{email}</p>
+                    </div>
+                    <button onClick={startEdit}
+                      className="flex-shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity duration-150 p-1 rounded-lg"
+                      style={{ color: 'var(--text3)', background: 'var(--bg4)' }}
+                      title="Edit display name">
+                      <Pencil size={10} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Theme selector */}
+              <div className="px-3 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                <p className="font-mono text-[9px] uppercase tracking-widest mb-2" style={{ color: 'var(--text3)' }}>Theme</p>
+                <div className="flex rounded-xl overflow-hidden" style={{ background: 'var(--bg4)', border: '1px solid var(--border)', gap: '1px' }}>
+                  {([
+                    { value: 'dark',     Icon: Moon,    label: 'Dark'  },
+                    { value: 'adaptive', Icon: SunMoon, label: 'Auto'  },
+                    { value: 'light',    Icon: Sun,     label: 'Light' },
+                  ] as const).map(({ value, Icon, label }) => {
+                    const active = mode === value
+                    return (
+                      <button key={value} onClick={() => setMode(value)}
+                        className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 transition-all duration-200"
+                        style={{
+                          background: active ? 'var(--bg6, var(--bg5))' : 'transparent',
+                          color: active ? 'var(--amber)' : 'var(--text3)',
+                          borderRadius: '8px',
+                        }}
+                        title={label}>
+                        <Icon size={12} />
+                        <span className="font-syne text-[9px] font-500 tracking-wide">{label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Logout */}
+              <button onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 transition-all duration-150 group/logout"
+                style={{ color: 'var(--text3)' }}>
+                <LogOut size={14} className="group-hover/logout:text-[var(--rose)] transition-colors duration-150" />
+                <span className="font-syne text-xs font-500 tracking-wide group-hover/logout:text-[var(--rose)] transition-colors duration-150">
+                  Log out
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* Collapsed trigger button */}
+          <button
+            onClick={() => setUserMenuOpen((p) => !p)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-150"
             style={{
-              background: 'var(--bg5)',
-              color:      'var(--amber)',
-              border:     '1px solid var(--border)',
+              background: userMenuOpen ? 'var(--bg4)' : 'transparent',
+              border: userMenuOpen ? '1px solid var(--border)' : '1px solid transparent',
             }}
           >
-            {avatarChar}
-          </div>
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 font-syne font-700 text-xs"
+              style={{ background: 'var(--bg5)', color: 'var(--amber)', border: '1px solid var(--border)' }}
+            >
+              {avatarChar}
+            </div>
+            <span className="flex-1 min-w-0 font-syne text-xs font-600 truncate text-left" style={{ color: 'var(--text2)' }}>
+              {displayName || email}
+            </span>
+            <ChevronUp
+              size={12}
+              style={{
+                color: 'var(--text3)',
+                flexShrink: 0,
+                transform: userMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+              }}
+            />
+          </button>
 
-          {/* Name / email + edit */}
-          <div className="flex-1 min-w-0">
-            {editingName ? (
-              <div className="flex items-center gap-1">
-                <input
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  onKeyDown={handleNameKeyDown}
-                  autoFocus
-                  maxLength={40}
-                  className="flex-1 min-w-0 font-syne text-xs outline-none px-1.5 py-0.5 rounded-md"
-                  style={{
-                    background:  'var(--bg4)',
-                    border:      '1px solid var(--amber)',
-                    color:       'var(--text)',
-                    width:       '100%',
-                  }}
-                />
-                <button
-                  onClick={saveName}
-                  disabled={savingName}
-                  className="w-5 h-5 flex items-center justify-center rounded flex-shrink-0"
-                  style={{ color: 'var(--teal)' }}
-                >
-                  <Check size={11} strokeWidth={2.5} />
-                </button>
-                <button
-                  onClick={cancelEdit}
-                  className="w-5 h-5 flex items-center justify-center rounded flex-shrink-0"
-                  style={{ color: 'var(--text3)' }}
-                >
-                  <X size={11} strokeWidth={2.5} />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 min-w-0">
-                <div className="min-w-0">
-                  {displayName ? (
-                    <p className="font-syne text-xs font-600 truncate" style={{ color: 'var(--text2)' }}>
-                      {displayName}
-                    </p>
-                  ) : (
-                    <p className="font-mono text-xs truncate" style={{ color: 'var(--text3)' }}>
-                      {email}
-                    </p>
-                  )}
-                  {displayName && (
-                    <p className="font-mono text-xs truncate leading-tight" style={{ color: 'var(--text3)', fontSize: 10 }}>
-                      {email}
-                    </p>
-                  )}
-                </div>
-                {/* Edit pencil — only visible on group hover */}
-                <button
-                  onClick={startEdit}
-                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-0.5 rounded"
-                  style={{ color: 'var(--text3)' }}
-                  title="Edit display name"
-                >
-                  <Pencil size={10} />
-                </button>
-              </div>
-            )}
-          </div>
         </div>
-
-        {/* Theme selector — 3-segment pill */}
-        <div
-          className="flex rounded-lg overflow-hidden mb-0.5"
-          style={{ background: 'var(--bg4)', border: '1px solid var(--border)', gap: '1px' }}
-        >
-          {([
-            { value: 'dark',     Icon: Moon,    label: 'Dark'     },
-            { value: 'adaptive', Icon: SunMoon, label: 'Auto'     },
-            { value: 'light',    Icon: Sun,     label: 'Light'    },
-          ] as const).map(({ value, Icon, label }) => {
-            const active = mode === value
-            return (
-              <button
-                key={value}
-                onClick={() => setMode(value)}
-                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 transition-all duration-200"
-                style={{
-                  background: active ? 'var(--bg6, var(--bg5))' : 'transparent',
-                  color:      active ? 'var(--amber)' : 'var(--text3)',
-                  borderRadius: '6px',
-                }}
-                title={label}
-              >
-                <Icon size={12} />
-                <span className="font-syne text-[9px] font-500 tracking-wide">{label}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Logout */}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all duration-150 group"
-          style={{ color: 'var(--text3)' }}
-        >
-          <LogOut
-            size={15}
-            className="group-hover:text-[var(--rose)] transition-colors duration-150"
-          />
-          <span className="font-syne text-xs font-500 tracking-wide group-hover:text-[var(--rose)] transition-colors duration-150">
-            Log out
-          </span>
-        </button>
       </div>
     </aside>
   )
