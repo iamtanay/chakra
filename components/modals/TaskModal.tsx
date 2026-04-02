@@ -594,7 +594,7 @@ export function TaskModal({
 
       {/* Project */}
       <div>
-        {fieldLabel('Project')}
+        {fieldLabel('Space')}
         <select
           value={projectId}
           onChange={canWrite ? (e) => {
