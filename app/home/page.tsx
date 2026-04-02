@@ -1,5 +1,7 @@
 'use client'
 
+import React from 'react'
+
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { generateReportData, driftLabel } from '@/lib/insights'
@@ -521,7 +523,7 @@ export default function HomePage() {
                   </h2>
                   <div className="space-y-3">
                     {report.insights.map((insight, i) => (
-                      <div key={i} className="flex gap-3">
+                      <div key={`insight-${i}-${insight.slice(0, 20)}`} className="flex gap-3">
                         <span className="font-mono text-xs w-6 flex-shrink-0 pt-0.5" style={{ color: 'var(--amber)' }}>
                           {String(i + 1).padStart(2, '0')}
                         </span>
@@ -566,9 +568,8 @@ export default function HomePage() {
                           const proj       = projects.find((p) => p.id === task.project_id)
                           const overBudget = task.actual_hours && task.estimated_hours && task.actual_hours > task.estimated_hours
                           return (
-                            <>
+                            <React.Fragment key={task.id}>
                               <tr
-                                key={task.id}
                                 className="transition-colors duration-100"
                                 style={{ borderBottom: task.completion_note ? 'none' : '1px solid var(--border)' }}
                                 onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
@@ -608,7 +609,7 @@ export default function HomePage() {
                                   </td>
                                 </tr>
                               )}
-                            </>
+                            </React.Fragment>
                           )
                         })}
                       </tbody>

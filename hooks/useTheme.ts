@@ -1,40 +1,62 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 
-export type Theme = 'dark' | 'light'
+export type ThemeMode = 'dark' | 'light' | 'adaptive'
+
+/** Resolves adaptive → 'dark' | 'light' based on current hour */
+function resolveAdaptive(): 'dark' | 'light' {
+  const hour = new Date().getHours()
+  // Light from 08:00, dark from 18:00
+  return hour >= 8 && hour < 18 ? 'light' : 'dark'
+}
+
+/** Applies the resolved theme to the DOM */
+function applyTheme(mode: ThemeMode) {
+  const resolved = mode === 'adaptive' ? resolveAdaptive() : mode
+  document.documentElement.setAttribute('data-theme', resolved)
+}
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>('dark')
+  const [mode, setModeState] = useState<ThemeMode>('dark')
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // On mount: read stored preference and apply
   useEffect(() => {
-    // Read from localStorage, fall back to system preference
-    const stored = localStorage.getItem('chakra-theme') as Theme | null
-    if (stored === 'dark' || stored === 'light') {
-      setThemeState(stored)
-      document.documentElement.setAttribute('data-theme', stored)
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      const resolved: Theme = prefersDark ? 'dark' : 'light'
-      setThemeState(resolved)
-      document.documentElement.setAttribute('data-theme', resolved)
+    const stored = localStorage.getItem('chakra-theme') as ThemeMode | null
+    const initial: ThemeMode =
+      stored === 'dark' || stored === 'light' || stored === 'adaptive'
+        ? stored
+        : 'dark'
+    setModeState(initial)
+    applyTheme(initial)
+  }, [])
+
+  // When mode changes to adaptive, start a minute-interval checker
+  useEffect(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
     }
+    if (mode === 'adaptive') {
+      // Apply immediately, then re-check every 60 s
+      applyTheme('adaptive')
+      intervalRef.current = setInterval(() => applyTheme('adaptive'), 60_000)
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+  }, [mode])
+
+  const setMode = useCallback((m: ThemeMode) => {
+    setModeState(m)
+    localStorage.setItem('chakra-theme', m)
+    applyTheme(m)
   }, [])
 
-  const setTheme = useCallback((t: Theme) => {
-    setThemeState(t)
-    localStorage.setItem('chakra-theme', t)
-    document.documentElement.setAttribute('data-theme', t)
-  }, [])
+  // Derived: what the DOM is currently showing (useful for icon display)
+  const resolvedTheme: 'dark' | 'light' =
+    mode === 'adaptive' ? resolveAdaptive() : mode
 
-  const toggle = useCallback(() => {
-    setThemeState((prev) => {
-      const next: Theme = prev === 'dark' ? 'light' : 'dark'
-      localStorage.setItem('chakra-theme', next)
-      document.documentElement.setAttribute('data-theme', next)
-      return next
-    })
-  }, [])
-
-  return { theme, setTheme, toggle }
+  return { mode, resolvedTheme, setMode }
 }

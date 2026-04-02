@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, FolderKanban, BarChart3, Star, Settings, Sun, Moon, LogOut, X, Pencil, Check } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, BarChart3, Star, Settings, Sun, Moon, SunMoon, LogOut, X, Pencil, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
@@ -19,7 +19,7 @@ export function BottomNav() {
   const pathname = usePathname()
   const router   = useRouter()
   const supabase = createClient()
-  const { theme, toggle } = useTheme()
+  const { mode, resolvedTheme, setMode } = useTheme()
 
   const [settingsOpen,  setSettingsOpen]  = useState(false)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
@@ -270,33 +270,40 @@ export function BottomNav() {
             </div>
 
             <div className="p-5 space-y-3">
-              {/* Theme toggle */}
+              {/* Theme selector — 3-segment pill */}
               <div
-                className="flex items-center justify-between px-4 py-3.5 rounded-xl"
+                className="rounded-xl overflow-hidden"
                 style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}
               >
-                <div className="flex items-center gap-3">
-                  {theme === 'dark'
-                    ? <Moon size={16} style={{ color: 'var(--text3)' }} />
-                    : <Sun  size={16} style={{ color: 'var(--amber)' }} />
-                  }
-                  <span className="font-syne text-sm font-500" style={{ color: 'var(--text)' }}>
-                    {theme === 'dark' ? 'Dark mode' : 'Light mode'}
-                  </span>
-                </div>
+                <p className="font-syne text-xs font-500 px-4 pt-3 pb-2" style={{ color: 'var(--text3)' }}>
+                  Theme
+                </p>
                 <div
-                  className="relative w-12 h-6 rounded-full cursor-pointer transition-colors duration-300 flex-shrink-0"
-                  style={{ background: theme === 'light' ? 'var(--amber)' : 'var(--bg5)' }}
-                  onClick={toggle}
+                  className="flex mx-3 mb-3 rounded-lg overflow-hidden"
+                  style={{ background: 'var(--bg4)', gap: '1px' }}
                 >
-                  <div
-                    className="absolute top-1 w-4 h-4 rounded-full transition-all duration-300"
-                    style={{
-                      background: '#fff',
-                      left:       theme === 'light' ? '28px' : '4px',
-                      boxShadow:  '0 1px 3px rgba(0,0,0,0.3)',
-                    }}
-                  />
+                  {([
+                    { value: 'dark',     Icon: Moon,    label: 'Dark'  },
+                    { value: 'adaptive', Icon: SunMoon, label: 'Auto'  },
+                    { value: 'light',    Icon: Sun,     label: 'Light' },
+                  ] as const).map(({ value, Icon, label }) => {
+                    const active = mode === value
+                    return (
+                      <button
+                        key={value}
+                        onClick={() => setMode(value)}
+                        className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-all duration-200"
+                        style={{
+                          background:   active ? 'var(--bg6, var(--bg2))' : 'transparent',
+                          color:        active ? 'var(--amber)' : 'var(--text3)',
+                          borderRadius: '6px',
+                        }}
+                      >
+                        <Icon size={15} />
+                        <span className="font-syne text-xs font-500">{label}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 

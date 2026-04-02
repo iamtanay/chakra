@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { Task, Project } from '@/types'
-import { Check, Star, RefreshCw, Flame } from 'lucide-react'
+import { Check, Star, RefreshCw, Flame, AlertTriangle } from 'lucide-react'
 import {
   recurrenceLabel,
   recurringDueStatus,
@@ -145,11 +145,13 @@ export function TaskCard({
     return isOverdue ? 'var(--col-high)' : 'var(--text3)'
   })()
 
-  const cardBorder = warmStreak
-    ? 'rgba(232,162,71,0.35)'
-    : task.is_recurring
-      ? 'rgba(232,162,71,0.18)'
-      : 'var(--border)'
+  const cardBorder = isOverdue
+    ? 'rgba(248,113,113,0.5)'
+    : warmStreak
+      ? 'rgba(232,162,71,0.35)'
+      : task.is_recurring
+        ? 'rgba(232,162,71,0.18)'
+        : 'var(--border)'
 
   // ── Action button helpers ──────────────────────────────────────────────────
 
@@ -233,10 +235,12 @@ export function TaskCard({
       onMouseLeave={() => setHovered(false)}
       className={`relative rounded-xl cursor-pointer card-lift ${isDragging ? 'opacity-30 scale-95' : ''}`}
       style={{
-        background: 'var(--bg3)',
+        background: isOverdue ? 'color-mix(in srgb, var(--bg3) 92%, rgba(248,113,113,0.5))' : 'var(--bg3)',
         border:     `1px solid ${cardBorder}`,
         overflow:   'hidden',
-        boxShadow:  warmStreak ? '0 0 16px rgba(232,162,71,0.10)' : undefined,
+        boxShadow:  isOverdue
+          ? '0 0 0 0 transparent'
+          : warmStreak ? '0 0 16px rgba(232,162,71,0.10)' : undefined,
         opacity:    isOldCompleted ? 0.55 : 1,
         transition: 'opacity 150ms ease',
       }}
@@ -249,6 +253,14 @@ export function TaskCard({
           opacity: isOldCompleted ? 0.4 : 0.8,
         }}
       />
+
+      {/* Overdue left stripe */}
+      {isOverdue && (
+        <div
+          className="absolute left-0 top-0 bottom-0 w-0.5"
+          style={{ background: 'var(--col-high)' }}
+        />
+      )}
 
       <div className="p-4 pt-4">
         {/* Header row */}
@@ -384,9 +396,23 @@ export function TaskCard({
               </span>
             ) : (
               displayDate && (
-                <span className="font-mono text-xs" style={{ color: dateColor }}>
-                  {formatDueDate(displayDate)}
-                </span>
+                isOverdue ? (
+                  <span
+                    className="flex items-center gap-1 font-mono text-xs px-1.5 py-0.5 rounded"
+                    style={{
+                      color:      'var(--col-high)',
+                      background: 'rgba(248,113,113,0.12)',
+                      border:     '1px solid rgba(248,113,113,0.25)',
+                    }}
+                  >
+                    <AlertTriangle size={9} strokeWidth={2.5} />
+                    {formatDueDate(displayDate)}
+                  </span>
+                ) : (
+                  <span className="font-mono text-xs" style={{ color: dateColor }}>
+                    {formatDueDate(displayDate)}
+                  </span>
+                )
               )
             )}
             {task.estimated_hours && (

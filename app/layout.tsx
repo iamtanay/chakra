@@ -53,7 +53,10 @@ const themeScript = `
 (function() {
   try {
     var stored = localStorage.getItem('chakra-theme');
-    if (stored === 'light' || stored === 'dark') {
+    if (stored === 'adaptive') {
+      var hour = new Date().getHours();
+      document.documentElement.setAttribute('data-theme', hour >= 8 && hour < 18 ? 'light' : 'dark');
+    } else if (stored === 'light' || stored === 'dark') {
       document.documentElement.setAttribute('data-theme', stored);
     } else {
       var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -69,7 +72,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${spaceMono.variable} ${dmSans.variable} ${cinzel.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${spaceMono.variable} ${dmSans.variable} ${cinzel.variable}`}>
       <head>
         {/* Must be first in head to prevent theme flash */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Logo } from '@/components/ui/Logo'
-import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Star, Sun, Moon, Pencil, Check, X } from 'lucide-react'
+import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Star, Sun, Moon, SunMoon, Pencil, Check, X } from 'lucide-react'
 import type { Project } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
 import { useState, useEffect } from 'react'
@@ -26,7 +26,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
   const router   = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
-  const { theme, toggle } = useTheme()
+  const { mode, resolvedTheme, setMode } = useTheme()
 
   const [displayName,    setDisplayName]    = useState<string>('')
   const [email,          setEmail]          = useState<string>('')
@@ -319,30 +319,35 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
           </div>
         </div>
 
-        {/* Theme toggle */}
-        <button
-          onClick={toggle}
-          className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all duration-150 group mb-0.5"
-          style={{ color: 'var(--text3)' }}
+        {/* Theme selector — 3-segment pill */}
+        <div
+          className="flex rounded-lg overflow-hidden mb-0.5"
+          style={{ background: 'var(--bg4)', border: '1px solid var(--border)', gap: '1px' }}
         >
-          <div className="relative w-7 h-3.5 rounded-full flex-shrink-0 transition-colors duration-300"
-            style={{ background: theme === 'dark' ? 'var(--bg5)' : 'var(--amber)' }}
-          >
-            <div
-              className="absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all duration-300"
-              style={{
-                background: theme === 'dark' ? 'var(--text3)' : '#fff',
-                left: theme === 'dark' ? '2px' : '16px',
-              }}
-            />
-          </div>
-          <span className="font-syne text-xs font-500 tracking-wide flex items-center gap-1.5">
-            {theme === 'dark'
-              ? <><Moon size={11} style={{ color: 'var(--text3)' }} /> Dark</>
-              : <><Sun  size={11} style={{ color: 'var(--amber)' }} /> Light</>
-            }
-          </span>
-        </button>
+          {([
+            { value: 'dark',     Icon: Moon,    label: 'Dark'     },
+            { value: 'adaptive', Icon: SunMoon, label: 'Auto'     },
+            { value: 'light',    Icon: Sun,     label: 'Light'    },
+          ] as const).map(({ value, Icon, label }) => {
+            const active = mode === value
+            return (
+              <button
+                key={value}
+                onClick={() => setMode(value)}
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 transition-all duration-200"
+                style={{
+                  background: active ? 'var(--bg6, var(--bg5))' : 'transparent',
+                  color:      active ? 'var(--amber)' : 'var(--text3)',
+                  borderRadius: '6px',
+                }}
+                title={label}
+              >
+                <Icon size={12} />
+                <span className="font-syne text-[9px] font-500 tracking-wide">{label}</span>
+              </button>
+            )
+          })}
+        </div>
 
         {/* Logout */}
         <button
