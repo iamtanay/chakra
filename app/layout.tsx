@@ -1,6 +1,7 @@
 import { Space_Mono, DM_Sans, Cinzel } from 'next/font/google'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { ViewProvider } from '@/lib/viewContext'
 
 const spaceMono = Space_Mono({
   variable: '--font-space-mono',
@@ -82,7 +83,9 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="bg-chakra-bg text-chakra-text antialiased">
-        {children}
+        <ViewProvider>
+          {children}
+        </ViewProvider>
       </body>
     </html>
   )

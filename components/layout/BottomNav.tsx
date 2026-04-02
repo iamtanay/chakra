@@ -2,17 +2,24 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, FolderKanban, BarChart3, Star, Settings, Sun, Moon, SunMoon, LogOut, X, Pencil, Check } from 'lucide-react'
+import { LayoutDashboard, FolderKanban, BarChart3, Star, Settings, Sun, Moon, SunMoon, LogOut, X, Pencil, Check, List, CalendarDays } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
+import { useView, type ViewMode } from '@/lib/viewContext'
 import { NotificationToggle } from '@/components/ui/NotificationToggle'
 
 const NAV_ITEMS = [
-  { href: '/home',     label: 'Home',     Icon: BarChart3       },
-  { href: '/board',    label: 'Board',    Icon: LayoutDashboard },
-  { href: '/today',    label: 'Today',    Icon: Star            },
+  { href: '/home',   label: 'Home',  Icon: BarChart3       },
+  { href: '/canvas',   label: 'Canvas',  Icon: LayoutDashboard },
+  { href: '/today',  label: 'Today', Icon: Star            },
   { href: '/spaces', label: 'Spaces', Icon: FolderKanban   },
+]
+
+const VIEW_OPTIONS: { value: ViewMode; label: string; Icon: React.ElementType; desc: string }[] = [
+  { value: 'kanban',   label: 'Board',    Icon: LayoutDashboard, desc: 'Kanban columns by status' },
+  { value: 'list',     label: 'List',     Icon: List,            desc: 'All tasks grouped by space' },
+  { value: 'calendar', label: 'Calendar', Icon: CalendarDays,    desc: 'Tasks by due date' },
 ]
 
 export function BottomNav() {
@@ -20,8 +27,10 @@ export function BottomNav() {
   const router   = useRouter()
   const supabase = createClient()
   const { mode, resolvedTheme, setMode } = useTheme()
+  const { view, setView } = useView()
 
   const [settingsOpen,  setSettingsOpen]  = useState(false)
+  const [viewsOpen,     setViewsOpen]     = useState(false)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
 
   const [displayName, setDisplayName] = useState<string>('')
@@ -40,10 +49,12 @@ export function BottomNav() {
   }, [])
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSettingsOpen(false) }
-    if (settingsOpen) document.addEventListener('keydown', handler)
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setSettingsOpen(false); setViewsOpen(false) }
+    }
+    if (settingsOpen || viewsOpen) document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [settingsOpen])
+  }, [settingsOpen, viewsOpen])
 
   const handleLogout = async () => {
     if (!logoutConfirm) {
@@ -84,6 +95,9 @@ export function BottomNav() {
 
   const avatarChar = (displayName || email).charAt(0).toUpperCase()
 
+  const isOnViews = pathname === '/canvas'
+  const currentViewOption = VIEW_OPTIONS.find(v => v.value === view)
+
   return (
     <>
       <nav
@@ -98,6 +112,39 @@ export function BottomNav() {
         <div className="flex items-center">
           {NAV_ITEMS.map(({ href, label, Icon }) => {
             const active = pathname === href
+
+            // Views tab: tapping always opens the sheet instead of navigating directly
+            if (href === '/canvas') {
+              return (
+                <button
+                  key={href}
+                  onClick={() => {
+                    setSettingsOpen(false)
+                    setViewsOpen(true)
+                  }}
+                  className="flex flex-col items-center justify-center gap-1.5 flex-1 py-3 transition-all duration-150 relative"
+                  style={{ minHeight: 56 }}
+                >
+                  {(active || viewsOpen) && (
+                    <div
+                      className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
+                      style={{ background: 'var(--amber)' }}
+                    />
+                  )}
+                  <Icon
+                    size={20}
+                    style={{ color: (active || viewsOpen) ? 'var(--amber)' : 'var(--text3)' }}
+                  />
+                  <span
+                    className="font-syne font-500 tracking-wide"
+                    style={{ color: (active || viewsOpen) ? 'var(--text)' : 'var(--text3)', fontSize: '10px' }}
+                  >
+                    {label}
+                  </span>
+                </button>
+              )
+            }
+
             return (
               <Link
                 key={href}
@@ -130,7 +177,7 @@ export function BottomNav() {
 
           {/* Settings button */}
           <button
-            onClick={() => { setSettingsOpen(true); setLogoutConfirm(false) }}
+            onClick={() => { setViewsOpen(false); setSettingsOpen(true); setLogoutConfirm(false) }}
             className="flex flex-col items-center justify-center gap-1.5 flex-1 py-3 transition-all duration-150"
             style={{ minHeight: 56 }}
           >
@@ -148,7 +195,96 @@ export function BottomNav() {
         </div>
       </nav>
 
-      {/* Settings Sheet */}
+      {/* ── Views Picker Sheet ── */}
+      {viewsOpen && (
+        <div
+          className="fixed inset-0 z-[60] md:hidden animate-fadeIn"
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setViewsOpen(false) }}
+        >
+          <div
+            className="fixed bottom-0 left-0 right-0 rounded-t-3xl sheet-enter"
+            style={{
+              background:    'var(--bg2)',
+              borderTop:     '1px solid var(--border2)',
+              boxShadow:     '0 -16px 60px rgba(0,0,0,0.5)',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+            }}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full" style={{ background: 'var(--bg5)' }} />
+            </div>
+
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: '1px solid var(--border)' }}
+            >
+              <div>
+                <p className="font-syne font-700 text-base" style={{ color: 'var(--text)' }}>Views</p>
+                <p className="font-mono text-xs" style={{ color: 'var(--text3)' }}>Choose how to see your tasks</p>
+              </div>
+              <button
+                onClick={() => setViewsOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ color: 'var(--text3)', background: 'var(--bg3)' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* View options */}
+            <div className="p-4 space-y-2.5">
+              {VIEW_OPTIONS.map(({ value, label, Icon, desc }) => {
+                const active = view === value
+                return (
+                  <button
+                    key={value}
+                    onClick={() => {
+                      setView(value)
+                      router.push('/canvas')
+                      setViewsOpen(false)
+                    }}
+                    className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-200"
+                    style={{
+                      background: active ? 'var(--amber-dim)' : 'var(--bg3)',
+                      border: `1px solid ${active ? 'var(--amber)' : 'var(--border)'}`,
+                    }}
+                  >
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{
+                        background: active ? 'var(--amber)' : 'var(--bg4)',
+                        color: active ? '#0a0a0a' : 'var(--text3)',
+                      }}
+                    >
+                      <Icon size={18} />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p
+                        className="font-syne font-700 text-sm"
+                        style={{ color: active ? 'var(--amber)' : 'var(--text)' }}
+                      >
+                        {label}
+                      </p>
+                      <p className="font-mono text-xs" style={{ color: 'var(--text3)' }}>{desc}</p>
+                    </div>
+                    {active && (
+                      <div
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ background: 'var(--amber)', boxShadow: '0 0 6px var(--amber)' }}
+                      />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Settings Sheet ── */}
       {settingsOpen && (
         <div
           className="fixed inset-0 z-[60] md:hidden animate-fadeIn"
@@ -169,13 +305,12 @@ export function BottomNav() {
               <div className="w-10 h-1 rounded-full" style={{ background: 'var(--bg5)' }} />
             </div>
 
-            {/* ── User identity header ── */}
+            {/* User identity header */}
             <div
               className="flex items-center justify-between px-5 py-4"
               style={{ borderBottom: '1px solid var(--border)' }}
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                {/* Avatar */}
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-syne font-700 text-base"
                   style={{
@@ -187,7 +322,6 @@ export function BottomNav() {
                   {avatarChar}
                 </div>
 
-                {/* Name + email */}
                 <div className="flex-1 min-w-0">
                   {editingName ? (
                     <div className="flex items-center gap-2">
@@ -257,7 +391,6 @@ export function BottomNav() {
                 </div>
               </div>
 
-              {/* Close button */}
               {!editingName && (
                 <button
                   onClick={() => setSettingsOpen(false)}
@@ -270,7 +403,7 @@ export function BottomNav() {
             </div>
 
             <div className="p-5 space-y-3">
-              {/* Theme selector — 3-segment pill */}
+              {/* Theme selector */}
               <div
                 className="rounded-xl overflow-hidden"
                 style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}

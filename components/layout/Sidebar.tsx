@@ -7,6 +7,7 @@ import { Logo } from '@/components/ui/Logo'
 import { LogOut, LayoutDashboard, FolderKanban, BarChart3, Star, Sun, Moon, SunMoon, Pencil, Check, X, ChevronUp } from 'lucide-react'
 import type { Project } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
+import { useView } from '@/lib/viewContext'
 import { useState, useEffect, useRef } from 'react'
 
 interface SidebarProps {
@@ -16,18 +17,19 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS = [
-  { href: '/home',     label: 'Home',     Icon: BarChart3       },
-  { href: '/board',    label: 'Board',    Icon: LayoutDashboard },
-  { href: '/today',    label: 'Today',    Icon: Star            },
+  { href: '/home',   label: 'Home',  Icon: BarChart3       },
+  { href: '/canvas',   label: 'Canvas',  Icon: LayoutDashboard },
+  { href: '/today',  label: 'Today', Icon: Star            },
   { href: '/spaces', label: 'Spaces', Icon: FolderKanban   },
 ]
+
 
 export function Sidebar({ projects, selectedProjectId, onProjectSelect }: SidebarProps) {
   const router   = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
   const { mode, resolvedTheme, setMode } = useTheme()
-
+  const { setView } = useView()
   const [displayName,    setDisplayName]    = useState<string>('')
   const [email,          setEmail]          = useState<string>('')
   const [editingName,    setEditingName]    = useState(false)
@@ -88,25 +90,20 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
     if (e.key === 'Escape') cancelEdit()
   }
 
-  // Avatar initial — first letter of display name or email
   const avatarChar = (displayName || email).charAt(0).toUpperCase()
 
-  /**
-   * Clicking a project in the sidebar navigates to /board?project=<id>.
-   * If already on /board, we also call onProjectSelect so the board
-   * updates without a full navigation (URL change triggers the board via useSearchParams).
-   */
   const handleProjectClick = (projectId: string | null) => {
     if (projectId === null) {
-      router.push('/board')
+      router.push('/canvas')
     } else {
-      router.push(`/board?project=${projectId}`)
+      // Clicking a project in sidebar always opens kanban view
+      setView('kanban')
+      router.push(`/canvas?project=${projectId}`)
     }
     onProjectSelect(projectId)
   }
 
-  // Highlight a project row when on /board and it matches the URL
-  const isOnBoard = pathname === '/board'
+  const isOnViews = pathname === '/canvas'
 
   const groupedProjects = {
     Work:     projects.filter((p) => p.type === 'Work'),
@@ -125,7 +122,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         overflow: 'hidden',
       }}
     >
-      {/* Logo — clicking always goes to /home */}
+      {/* Logo */}
       <Link
         href="/home"
         className="flex items-center gap-3 px-5 py-5"
@@ -192,13 +189,12 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
           className="mt-3 mx-3 pt-3 flex-1 overflow-y-auto"
           style={{ borderTop: '1px solid var(--border)' }}
         >
-          {/* "All Spaces" shortcut — goes to /board with no filter */}
           <button
             onClick={() => handleProjectClick(null)}
             className="w-full text-left px-3 py-2 rounded-lg font-syne text-xs font-500 transition-all duration-150 mb-2"
             style={{
-              color:      (isOnBoard && selectedProjectId === null) ? 'var(--amber)' : 'var(--text3)',
-              background: (isOnBoard && selectedProjectId === null) ? 'var(--amber-dim)' : 'transparent',
+              color:      (isOnViews && selectedProjectId === null) ? 'var(--amber)' : 'var(--text3)',
+              background: (isOnViews && selectedProjectId === null) ? 'var(--amber-dim)' : 'transparent',
               letterSpacing: '0.05em',
             }}
           >
@@ -216,7 +212,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
                   {type}
                 </div>
                 {list.map((project) => {
-                  const isActive = isOnBoard && selectedProjectId === project.id
+                  const isActive = isOnViews && selectedProjectId === project.id
                   return (
                     <button
                       key={project.id}
@@ -246,11 +242,10 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         </div>
       )}
 
-      {/* Bottom section — collapsed user trigger */}
+      {/* Bottom section */}
       <div className="px-3 pt-2 pb-3 mt-auto flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
         <div ref={userMenuRef} className="relative">
 
-          {/* User popup — appears above the trigger */}
           {userMenuOpen && (
             <div
               className="absolute bottom-full left-0 right-0 mb-2 rounded-2xl overflow-hidden"
@@ -260,7 +255,6 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
                 boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
               }}
             >
-              {/* Name edit row */}
               <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
                 {editingName ? (
                   <div className="flex items-center gap-1.5">
@@ -302,7 +296,6 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
                 )}
               </div>
 
-              {/* Theme selector */}
               <div className="px-3 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
                 <p className="font-mono text-[9px] uppercase tracking-widest mb-2" style={{ color: 'var(--text3)' }}>Theme</p>
                 <div className="flex rounded-xl overflow-hidden" style={{ background: 'var(--bg4)', border: '1px solid var(--border)', gap: '1px' }}>
@@ -329,7 +322,6 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
                 </div>
               </div>
 
-              {/* Logout */}
               <button onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-4 py-3 transition-all duration-150 group/logout"
                 style={{ color: 'var(--text3)' }}>
@@ -341,7 +333,6 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
             </div>
           )}
 
-          {/* Collapsed trigger button */}
           <button
             onClick={() => setUserMenuOpen((p) => !p)}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-150"
@@ -369,7 +360,6 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
               }}
             />
           </button>
-
         </div>
       </div>
     </aside>

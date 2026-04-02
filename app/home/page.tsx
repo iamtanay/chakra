@@ -122,9 +122,9 @@ export default function HomePage() {
 
   const quickLinks = [
     {
-      href:  '/board',
-      label: 'Open Board',
-      sub:   'Kanban view of all your tasks',
+      href:  '/canvas',
+      label: 'Canvas',
+      sub:   'Kanban, list & calendar views',
       Icon:  LayoutDashboard,
       color: 'var(--amber)',
       dim:   'var(--amber-dim)',
@@ -302,7 +302,7 @@ export default function HomePage() {
                   return (
                     <Link
                       key={project.id}
-                      href={`/board?project=${project.id}`}
+                      href={`/canvas?project=${project.id}`}
                       className="group flex flex-col gap-2 px-4 py-3 rounded-xl transition-all duration-150"
                       style={{
                         background:   'var(--bg3)',
@@ -356,11 +356,11 @@ export default function HomePage() {
                 Complete tasks to see your telemetry here.
               </p>
               <Link
-                href="/board"
+                href="/canvas"
                 className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl font-syne text-sm font-600 transition-all duration-150"
                 style={{ background: 'var(--amber-dim)', color: 'var(--amber)', border: '1px solid rgba(232,162,71,0.2)' }}
               >
-                <LayoutDashboard size={14} /> Go to Board
+                <LayoutDashboard size={14} /> Open Canvas
               </Link>
             </div>
           ) : (

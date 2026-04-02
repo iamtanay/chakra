@@ -8,12 +8,15 @@ import { PageTopBar } from '@/components/layout/PageTopBar'
 import { DailyPulse } from '@/components/layout/DailyPulse'
 import { KanbanBoard } from '@/components/board/KanbanBoard'
 import { MobileBoard } from '@/components/board/MobileBoard'
+import { ListView } from '@/components/views/ListView'
+import { CalendarView } from '@/components/views/CalendarView'
 import { TaskModal, type NewTaskData } from '@/components/modals/TaskModal'
 import { CompleteModal } from '@/components/modals/CompleteModal'
 import { Logo } from '@/components/ui/Logo'
 import { ProjectSwitcher } from '@/components/ui/ProjectSwitcher'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
-import { Plus } from 'lucide-react'
+import { useView } from '@/lib/viewContext'
+import { Plus, LayoutDashboard, List, CalendarDays } from 'lucide-react'
 import type { Task, Project, Status, ProjectMember } from '@/types'
 import {
   shouldShowRecurringTask,
@@ -26,10 +29,23 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (table: string) => (createClient() as any).from(table)
 
-export default function BoardPage() {
-  const isMobile    = useMediaQuery('(max-width: 768px)')
+const VIEW_LABELS = {
+  kanban:   { label: 'Board',    Icon: LayoutDashboard },
+  list:     { label: 'List',     Icon: List            },
+  calendar: { label: 'Calendar', Icon: CalendarDays    },
+} as const
+
+export default function ViewsPage() {
+  const isMobile     = useMediaQuery('(max-width: 768px)')
   const searchParams = useSearchParams()
   const router       = useRouter()
+  const { view, setView } = useView()
+
+  // Always open Canvas in board view
+  useEffect(() => {
+    setView('kanban')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [tasks,         setTasks]         = useState<Task[]>([])
   const [projects,      setProjects]      = useState<Project[]>([])
@@ -49,17 +65,14 @@ export default function BoardPage() {
     return () => clearTimeout(t)
   }, [])
 
-  // ── URL-driven project selection ──────────────────────────────────────────
-  // The source of truth is ?project=<id> in the URL.
-  // The Sidebar sets this via router.push('/board?project=<id>').
-  // ProjectSwitcher in the top bar also updates the URL.
+  // URL-driven project selection — applies to all views
   const selectedProjectId = searchParams.get('project') ?? null
 
   const setSelectedProjectId = (id: string | null) => {
     if (id) {
-      router.push(`/board?project=${id}`)
+      router.push(`/canvas?project=${id}`)
     } else {
-      router.push('/board')
+      router.push('/canvas')
     }
   }
 
@@ -87,15 +100,13 @@ export default function BoardPage() {
       setTasks((td || []) as Task[])
       setMembers((md || []) as ProjectMember[])
     } catch (err) {
-      console.error('Board load error:', err)
+      console.error('Views load error:', err)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => { loadData().catch(console.error) }, [])
-
-  // ── Permission helpers ────────────────────────────────────────────────────
 
   const isOwnerOf = (project: Project): boolean =>
     !!currentUserId && project.owner_id === currentUserId
@@ -128,7 +139,7 @@ export default function BoardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingTask, projects, members, currentUserId, canWrite])
 
-  // Filtered tasks for board display
+  // Project filter applies to ALL views
   const filteredTasks = useMemo(() => {
     const today = todayLocal()
     const projectFiltered = selectedProjectId
@@ -139,8 +150,6 @@ export default function BoardPage() {
       return shouldShowRecurringTask(t, today)
     })
   }, [tasks, selectedProjectId])
-
-  // ── Modal helpers ─────────────────────────────────────────────────────────
 
   const openCreateModal = (status: Status = 'Todo') => {
     if (!canWrite) return
@@ -158,8 +167,6 @@ export default function BoardPage() {
     setModalOpen(false)
     setEditingTask(null)
   }
-
-  // ── CRUD handlers ─────────────────────────────────────────────────────────
 
   const handleTaskCreate = async (data: NewTaskData) => {
     if (!currentUserId) return
@@ -257,7 +264,12 @@ export default function BoardPage() {
         prev.map((t) => t.id === taskId ? { ...t, status: newStatus, completed_at: null } : t)
       )
       await db('tasks')
-        .update({ status: newStatus, completed_at: newStatus === 'Done' ? new Date().toISOString() : null, actual_hours: null, completed_by: newStatus === 'Done' ? currentUserId : null })
+        .update({
+          status: newStatus,
+          completed_at: newStatus === 'Done' ? new Date().toISOString() : null,
+          actual_hours: null,
+          completed_by: newStatus === 'Done' ? currentUserId : null,
+        })
         .eq('id', taskId)
       setLogoSpin(null)
     } catch (err) {
@@ -366,8 +378,6 @@ export default function BoardPage() {
     }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen" style={{ background: 'var(--bg)' }}>
@@ -377,10 +387,35 @@ export default function BoardPage() {
   }
 
   const hasProjects = projects.length > 0
+  const { label: viewLabel } = VIEW_LABELS[view]
 
-  // Derive a label for the top bar: selected project name or "Board"
-  const selectedProject = projects.find((p) => p.id === selectedProjectId)
-  const topBarTitle     = 'Board'
+  // View switcher — desktop only
+  const ViewSwitcher = (
+    <div
+      className="hidden md:flex rounded-xl overflow-hidden"
+      style={{ background: 'var(--bg3)', border: '1px solid var(--border)', gap: '1px' }}
+    >
+      {(Object.entries(VIEW_LABELS) as [keyof typeof VIEW_LABELS, typeof VIEW_LABELS[keyof typeof VIEW_LABELS]][]).map(([key, { label, Icon }]) => {
+        const active = view === key
+        return (
+          <button
+            key={key}
+            onClick={() => setView(key)}
+            className="flex items-center gap-1.5 px-3 py-1.5 transition-all duration-200 font-syne text-xs font-600"
+            style={{
+              background: active ? 'var(--bg5)' : 'transparent',
+              color: active ? 'var(--amber)' : 'var(--text3)',
+              borderRadius: '8px',
+            }}
+            title={label}
+          >
+            <Icon size={13} />
+            <span>{label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
 
   return (
     <AppShell
@@ -388,13 +423,16 @@ export default function BoardPage() {
       selectedProjectId={selectedProjectId}
       onProjectSelect={setSelectedProjectId}
     >
-      {/* ── Unified top bar ── */}
+      {/* Unified top bar — consistent for ALL views */}
       <PageTopBar
-        title={topBarTitle}
+        title={viewLabel}
         logoSpin={logoSpin}
         actions={
           <>
-            {/* Project switcher — always visible when there are projects */}
+            {/* View switcher — desktop only */}
+            {ViewSwitcher}
+
+            {/* Project filter — always shown for all views */}
             {hasProjects && (
               <ProjectSwitcher
                 projects={projects}
@@ -404,7 +442,8 @@ export default function BoardPage() {
                 dropdownAlign="right"
               />
             )}
-            {/* Add task — only when writable */}
+
+            {/* Add task — always shown for all views */}
             {canWrite && (
               <button
                 onClick={() => openCreateModal('Todo')}
@@ -419,10 +458,10 @@ export default function BoardPage() {
         }
       />
 
-      {/* DailyPulse strip — below top bar, above board */}
+      {/* DailyPulse — shown for ALL views */}
       <DailyPulse tasks={tasks} projects={projects} selectedProjectId={selectedProjectId} />
 
-      {/* Board area */}
+      {/* Content area */}
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {!hasProjects ? (
           <div className="flex flex-col items-center justify-center h-full gap-4">
@@ -438,11 +477,38 @@ export default function BoardPage() {
               Create a space
             </a>
           </div>
-        ) : isMobile ? (
-          <MobileBoard
+        ) : view === 'kanban' ? (
+          isMobile ? (
+            <MobileBoard
+              tasks={filteredTasks}
+              projects={projects}
+              canWrite={canWrite}
+              onCardClick={openEditModal}
+              onComplete={handleTaskComplete}
+              onUndoDone={handleUndoDone}
+              onTodayToggle={handleTodayToggle}
+              onStatusChange={handleStatusChange}
+              onAddTask={openCreateModal}
+            />
+          ) : (
+            <KanbanBoard
+              tasks={filteredTasks}
+              projects={projects}
+              canWrite={canWrite}
+              onCardClick={openEditModal}
+              onComplete={handleTaskComplete}
+              onUndoDone={handleUndoDone}
+              onTodayToggle={handleTodayToggle}
+              onStatusChange={handleStatusChange}
+              onAddTask={openCreateModal}
+            />
+          )
+        ) : view === 'list' ? (
+          <ListView
             tasks={filteredTasks}
             projects={projects}
             canWrite={canWrite}
+            selectedProjectId={selectedProjectId}
             onCardClick={openEditModal}
             onComplete={handleTaskComplete}
             onUndoDone={handleUndoDone}
@@ -451,16 +517,13 @@ export default function BoardPage() {
             onAddTask={openCreateModal}
           />
         ) : (
-          <KanbanBoard
+          <CalendarView
             tasks={filteredTasks}
             projects={projects}
-            canWrite={canWrite}
+            selectedProjectId={selectedProjectId}
             onCardClick={openEditModal}
-            onComplete={handleTaskComplete}
-            onUndoDone={handleUndoDone}
-            onTodayToggle={handleTodayToggle}
-            onStatusChange={handleStatusChange}
             onAddTask={openCreateModal}
+            canWrite={canWrite}
           />
         )}
       </div>

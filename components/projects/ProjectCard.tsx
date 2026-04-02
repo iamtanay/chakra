@@ -114,8 +114,8 @@ export function ProjectCard({
         </div>
 
         {/* Footer action row
-            Mobile:  [Share] [Edit]  ·············  [Open in Board]
-            Desktop: ·············  [Share] [Edit] [Open in Board]  (fade in on hover)
+            Mobile:  [Share] [Edit]  ·············  [Open in Canvas]
+            Desktop: ·············  [Share] [Edit] [Open in Canvas]  (fade in on hover)
         */}
         <div
           className="flex items-center justify-between pt-3"
@@ -144,8 +144,8 @@ export function ProjectCard({
           </div>
 
           {/* Right slot — all actions pushed to the right
-              Desktop: Share + Edit (hover-revealed) + Open in Board
-              Mobile:  Open in Board only (Share/Edit already on the left)            */}
+              Desktop: Share + Edit (hover-revealed) + Open in Canvas
+              Mobile:  Open in Canvas only (Share/Edit already on the left)            */}
           <div className="flex items-center gap-1 ml-auto">
 
             {/* Share + Edit — desktop, revealed on hover */}
@@ -177,9 +177,9 @@ export function ProjectCard({
               </button>
             </div>
 
-            {/* Open in Board — always visible, rightmost */}
+            {/* Open in Canvas — always visible, rightmost */}
             <button
-              onClick={() => router.push(`/board?project=${project.id}`)}
+              onClick={() => router.push(`/canvas?project=${project.id}`)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-syne font-600 text-xs transition-all duration-200"
               style={{
                 background: 'var(--bg5)',
@@ -199,7 +199,7 @@ export function ProjectCard({
               title="Open this project in Board view"
             >
               <LayoutDashboard size={12} />
-              Open in Board
+              Open in Canvas
             </button>
           </div>
         </div>
