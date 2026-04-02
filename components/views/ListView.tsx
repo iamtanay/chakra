@@ -128,25 +128,38 @@ export function ListView({
 
     const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 }
     const STATUS_ORDER: Record<string, number> = { 'Todo': 0, 'In Progress': 1, 'Done': 2 }
+
     result = [...result].sort((a, b) => {
+      // ✅ 1. Pending first (core requirement)
+      if (a.status === 'Done' && b.status !== 'Done') return 1
+      if (a.status !== 'Done' && b.status === 'Done') return -1
+
       let cmp = 0
-      if (sortCol === 'title')    cmp = a.title.localeCompare(b.title)
+
+      if (sortCol === 'title') {
+        cmp = a.title.localeCompare(b.title)
+      }
+
       if (sortCol === 'status') {
         cmp = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99)
       }
+
       if (sortCol === 'priority') {
         cmp = (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99)
       }
+
       if (sortCol === 'due') {
-        const ad = a.next_due_date ?? a.due_date ?? '9999'
-        const bd = b.next_due_date ?? b.due_date ?? '9999'
-        cmp = ad.localeCompare(bd)
+        const ad = a.next_due_date ?? a.due_date ?? '9999-12-31'
+        const bd = b.next_due_date ?? b.due_date ?? '9999-12-31'
+        cmp = ad.localeCompare(bd) // earlier = higher priority
       }
+
       if (sortCol === 'project') {
         const ap = projectsMap.get(a.project_id)?.name ?? ''
         const bp = projectsMap.get(b.project_id)?.name ?? ''
         cmp = ap.localeCompare(bp)
       }
+
       return sortDir === 'asc' ? cmp : -cmp
     })
 
