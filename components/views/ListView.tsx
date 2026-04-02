@@ -47,7 +47,10 @@ function FilterDropdown<T extends string>({
 }) {
   const selected = options.find(o => o.value === value)
   return (
-    <div className="relative flex items-center gap-1.5">
+    <div
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg flex-shrink-0"
+      style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}
+    >
       <span className="font-mono text-[10px] uppercase tracking-widest whitespace-nowrap" style={{ color: 'var(--text3)' }}>
         {label}
       </span>
@@ -55,7 +58,7 @@ function FilterDropdown<T extends string>({
         <select
           value={value}
           onChange={e => onChange(e.target.value as T)}
-          className="appearance-none font-syne text-xs font-500 pl-2.5 pr-6 py-1.5 rounded-lg cursor-pointer outline-none"
+          className="appearance-none font-syne text-xs font-500 pl-1.5 pr-5 py-0.5 rounded-md cursor-pointer outline-none bg-transparent"
           style={{
             background: value !== 'all' ? 'var(--amber-dim)' : 'var(--bg3)',
             color: value !== 'all' ? 'var(--amber)' : 'var(--text2)',
@@ -192,7 +195,7 @@ export function ListView({
     <div className="flex flex-col gap-3 pb-6">
       {/* Filter bar — dropdowns */}
       <div
-        className="rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2"
+        className="rounded-xl px-3 py-2.5 flex items-center gap-2 overflow-x-auto no-scrollbar"
         style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
       >
         <FilterDropdown
