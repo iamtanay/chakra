@@ -109,7 +109,7 @@ export function CalendarView({ tasks, projects, selectedProjectId, onCardClick, 
           <ChevronLeft size={13} />
         </button>
         <p className="font-syne font-700 text-sm" style={{ color: 'var(--text)' }}>
-          {MONTHS[month].slice(0, 3)} {year}
+          {(MONTHS[month] ?? '').slice(0, 3)} {year}
         </p>
         <button
           onClick={nextMonth}

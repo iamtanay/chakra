@@ -131,8 +131,12 @@ export function ListView({
     result = [...result].sort((a, b) => {
       let cmp = 0
       if (sortCol === 'title')    cmp = a.title.localeCompare(b.title)
-      if (sortCol === 'status')   cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
-      if (sortCol === 'priority') cmp = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
+      if (sortCol === 'status') {
+        cmp = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99)
+      }
+      if (sortCol === 'priority') {
+        cmp = (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99)
+      }
       if (sortCol === 'due') {
         const ad = a.next_due_date ?? a.due_date ?? '9999'
         const bd = b.next_due_date ?? b.due_date ?? '9999'
