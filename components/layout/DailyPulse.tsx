@@ -58,7 +58,7 @@ export function DailyPulse({ tasks, projects, selectedProjectId }: DailyPulsePro
   }, [tasks, projects, selectedProjectId])
 
   const scopeLabel = selectedProjectId
-    ? (projects.find((p) => p.id === selectedProjectId)?.name ?? 'Project')
+    ? (projects.find((p) => p.id === selectedProjectId)?.name ?? 'Space')
     : 'All'
 
   return (
@@ -106,7 +106,7 @@ export function DailyPulse({ tasks, projects, selectedProjectId }: DailyPulsePro
             <FolderDot size={13} style={{ color: 'var(--violet)' }} />
             <span className="font-mono text-xs" style={{ color: 'var(--text2)' }}>
               <span style={{ color: 'var(--violet)' }}>{pulse.projectsTodayCount}</span>
-              {' '}{pulse.projectsTodayCount === 1 ? 'project' : 'projects'}
+              {' '}{pulse.projectsTodayCount === 1 ? 'space' : 'spaces'}
             </span>
           </div>
         </>

@@ -37,7 +37,7 @@ const FEATURES = [
   },
   {
     Icon: Users,
-    title: 'Share Projects',
+    title: 'Share Spaces',
     desc:  'Bring in a collaborator without handing over the whole workspace. Control who sees what.',
     color: 'var(--amber)',
     dim:   'var(--amber-dim)',

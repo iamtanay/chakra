@@ -403,7 +403,7 @@ export function TaskModal({
   if (projects.length === 0) {
     const msg = (
       <div className="py-8 text-center">
-        <p className="font-syne text-sm mb-1" style={{ color: 'var(--text2)' }}>No projects yet.</p>
+        <p className="font-syne text-sm mb-1" style={{ color: 'var(--text2)' }}>No spaces yet.</p>
         <p className="font-mono text-xs" style={{ color: 'var(--text3)' }}>Create a project first.</p>
       </div>
     )

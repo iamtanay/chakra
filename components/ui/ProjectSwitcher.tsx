@@ -73,7 +73,7 @@ export function ProjectSwitcher({
             whiteSpace: 'nowrap',
           }}
         >
-          {selected ? selected.name : 'All projects'}
+          {selected ? selected.name : 'All Spaces'}
         </span>
         <ChevronDown
           size={11}
@@ -100,7 +100,7 @@ export function ProjectSwitcher({
             overflow: 'hidden',
           }}
         >
-          {/* All projects */}
+          {/* All Spaces */}
           <div className="px-2 pt-2">
             <button
               onClick={() => { onProjectSelect(null); setOpen(false) }}
@@ -111,7 +111,7 @@ export function ProjectSwitcher({
             >
               <Layers size={13} style={{ color: 'var(--text3)', flexShrink: 0 }} />
               <span className="font-cinzel text-xs tracking-[0.1em] uppercase flex-1 text-left" style={{ color: 'var(--text)' }}>
-                All Projects
+                All Spaces
               </span>
               {selectedProjectId === null && <Check size={12} style={{ color: 'var(--amber)' }} />}
             </button>

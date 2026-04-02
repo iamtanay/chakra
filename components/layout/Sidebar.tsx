@@ -19,7 +19,7 @@ const NAV_ITEMS = [
   { href: '/home',     label: 'Home',     Icon: BarChart3       },
   { href: '/board',    label: 'Board',    Icon: LayoutDashboard },
   { href: '/today',    label: 'Today',    Icon: Star            },
-  { href: '/projects', label: 'Projects', Icon: FolderKanban   },
+  { href: '/spaces', label: 'Spaces', Icon: FolderKanban   },
 ]
 
 export function Sidebar({ projects, selectedProjectId, onProjectSelect }: SidebarProps) {
@@ -186,13 +186,13 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         })}
       </nav>
 
-      {/* Projects */}
+      {/* Spaces */}
       {projects.length > 0 && (
         <div
           className="mt-3 mx-3 pt-3 flex-1 overflow-y-auto"
           style={{ borderTop: '1px solid var(--border)' }}
         >
-          {/* "All Projects" shortcut — goes to /board with no filter */}
+          {/* "All Spaces" shortcut — goes to /board with no filter */}
           <button
             onClick={() => handleProjectClick(null)}
             className="w-full text-left px-3 py-2 rounded-lg font-syne text-xs font-500 transition-all duration-150 mb-2"
@@ -202,7 +202,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
               letterSpacing: '0.05em',
             }}
           >
-            ALL PROJECTS
+            ALL SPACES
           </button>
 
           {Object.entries(groupedProjects).map(([type, list]) => {

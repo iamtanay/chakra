@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { href: '/home',     label: 'Home',     Icon: BarChart3       },
   { href: '/board',    label: 'Board',    Icon: LayoutDashboard },
   { href: '/today',    label: 'Today',    Icon: Star            },
-  { href: '/projects', label: 'Projects', Icon: FolderKanban   },
+  { href: '/spaces', label: 'Spaces', Icon: FolderKanban   },
 ]
 
 export function BottomNav() {

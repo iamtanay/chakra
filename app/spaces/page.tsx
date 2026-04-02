@@ -180,7 +180,7 @@ export default function ProjectsPage() {
     <AppShell projects={projects} selectedProjectId={null} onProjectSelect={() => {}}>
       {/* ── Unified top bar ── */}
       <PageTopBar
-        title="Projects"
+        title="Spaces"
         logoSpin={logoSpin}
         actions={
           <button
@@ -189,7 +189,7 @@ export default function ProjectsPage() {
             style={{ background: 'var(--amber)', color: '#0a0a0a' }}
           >
             <Plus size={15} />
-            <span className="hidden sm:inline">New project</span>
+            <span className="hidden sm:inline">New space</span>
             <span className="sm:hidden">New</span>
           </button>
         }
@@ -204,7 +204,7 @@ export default function ProjectsPage() {
               style={{ border: '1.5px dashed var(--border2)' }}
             >
               <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
-                No projects yet.
+                No spaces yet.
               </p>
               <p className="font-mono text-xs mt-1" style={{ color: 'var(--text3)', opacity: 0.6 }}>
                 Create one to begin.
