@@ -83,12 +83,14 @@ export default function TodayPage() {
       if (te) throw te
       setProjects((pd || []) as Project[])
       setTasks((td || []) as Task[])
+    } catch (err) {
+      console.error('Today page load error:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData().catch(console.error) }, [])
 
   const todayStr = toISODate(new Date())
 

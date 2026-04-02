@@ -86,12 +86,14 @@ export default function BoardPage() {
       setProjects((pd || []) as Project[])
       setTasks((td || []) as Task[])
       setMembers((md || []) as ProjectMember[])
+    } catch (err) {
+      console.error('Board load error:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData().catch(console.error) }, [])
 
   // ── Permission helpers ────────────────────────────────────────────────────
 
@@ -425,15 +427,15 @@ export default function BoardPage() {
         {!hasProjects ? (
           <div className="flex flex-col items-center justify-center h-full gap-4">
             <p className="font-syne text-sm" style={{ color: 'var(--text3)' }}>
-              No projects yet.
+              No spaces yet.
             </p>
             <a
-              href="/projects"
+              href="/spaces"
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-syne font-600 text-sm"
               style={{ background: 'var(--amber)', color: '#0a0a0a' }}
             >
               <Plus size={15} />
-              Create a project
+              Create a space
             </a>
           </div>
         ) : isMobile ? (

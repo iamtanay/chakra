@@ -18,7 +18,7 @@ interface TaskCardProps {
   onCardClick: (task: Task) => void
   onComplete: (task: Task) => void
   /**
-   * Called when the user clicks the undo-done tick on a completed task.
+   * Called when the user confirms undo on a completed task.
    * Moves the task back to 'Todo'.
    */
   onUndoDone?: (task: Task) => void
@@ -33,9 +33,9 @@ interface TaskCardProps {
   /**
    * True on mobile. Controls tick-mark appearance:
    * - mobile non-done: hollow circle (always visible, tap to complete)
-   * - mobile done: filled teal circle (always visible, tap to undo)
+   * - mobile done: filled teal circle (always visible, tap to undo — 2 taps)
    * - web non-done: filled teal/amber circle on hover only
-   * - web done: filled teal circle always visible, click to undo
+   * - web done: filled teal circle always visible, click to undo — 2 clicks
    */
   isMobile?: boolean
 }
@@ -76,13 +76,11 @@ const categoryAbbr: Record<string, string> = {
   'Exam Prep':            'EXAM',
 }
 
-/** Format a YYYY-MM-DD string for display without UTC-offset surprises. */
 function formatDueDate(iso: string): string {
   const d = parseLocalDate(iso)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-/** Format a completed_at timestamp as a relative or absolute label. */
 function formatCompletedAt(iso: string): string {
   const d    = new Date(iso)
   const now  = Date.now()
@@ -107,12 +105,12 @@ export function TaskCard({
   isOldCompleted = false,
   isMobile       = false,
 }: TaskCardProps) {
-  const [hovered, setHovered] = useState(false)
+  const [hovered,     setHovered]     = useState(false)
+  const [pendingUndo, setPendingUndo] = useState(false)
 
   const today  = todayLocal()
   const isDone = task.status === 'Done'
 
-  // ── Date logic ─────────────────────────────────────────────────────────────
   const displayDate = task.next_due_date || task.due_date
 
   const isOverdue =
@@ -122,16 +120,13 @@ export function TaskCard({
 
   const dueStatus = task.is_recurring ? recurringDueStatus(task, today) : null
 
-  // ── Today logic ────────────────────────────────────────────────────────────
   const todayStr   = toISODate(new Date())
   const isDueToday = (task.next_due_date ?? task.due_date) === todayStr
   const isInToday  = task.today_flag || isDueToday
 
-  // ── Momentum ───────────────────────────────────────────────────────────────
   const streak     = task.current_streak ?? 0
   const warmStreak = task.is_recurring && isWarmStreak(streak)
 
-  // ── Visual vars ────────────────────────────────────────────────────────────
   const abbr   = categoryAbbr[task.category] ?? task.category?.slice(0, 3).toUpperCase() ?? '—'
   const pColor = priorityColors[task.priority] ?? 'var(--text3)'
   const pBg    = priorityBg[task.priority]    ?? 'transparent'
@@ -153,23 +148,19 @@ export function TaskCard({
         ? 'rgba(232,162,71,0.18)'
         : 'var(--border)'
 
-  // ── Action button helpers ──────────────────────────────────────────────────
-
-  /**
-   * When is the button visible?
-   *
-   * • isOldCompleted cards: never show (we keep the rendered element so
-   *   opacity transition works, but opacity stays 0 — handled in style below).
-   * • Done tasks: always visible (both web and mobile).
-   * • Mobile non-done: always visible (hollow circle).
-   * • Web non-done: visible only on hover.
-   */
   const buttonVisible =
     !isOldCompleted &&
     (isDone || isMobile || hovered)
 
   const getButtonStyle = (): React.CSSProperties => {
     if (isDone) {
+      if (pendingUndo) {
+        return {
+          background: 'var(--rose, #f43f5e)',
+          boxShadow:  '0 0 12px rgba(244,63,94,0.4)',
+          border:     'none',
+        }
+      }
       return {
         background: 'var(--teal)',
         boxShadow:  '0 0 12px rgba(45,212,191,0.35)',
@@ -177,14 +168,12 @@ export function TaskCard({
       }
     }
     if (isMobile) {
-      // Hollow circle with green border — signals "tap to mark done"
       return {
         background: 'transparent',
         border:     '2px solid var(--teal)',
         boxShadow:  'none',
       }
     }
-    // Web hover — recurring uses amber, one-off uses teal
     if (task.is_recurring) {
       return {
         background: 'var(--amber)',
@@ -199,10 +188,19 @@ export function TaskCard({
     }
   }
 
-  const handleActionClick = (e: React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation()
+  /**
+   * Core action logic — called by both onClick and onTouchEnd.
+   * Kept free of any React.MouseEvent / React.TouchEvent types so it
+   * can be invoked cleanly from either handler without type issues.
+   */
+  const handleActionClick = () => {
     if (isDone) {
-      onUndoDone?.(task)
+      if (pendingUndo) {
+        setPendingUndo(false)
+        onUndoDone?.(task)
+      } else {
+        setPendingUndo(true)
+      }
     } else {
       onComplete(task)
     }
@@ -210,9 +208,8 @@ export function TaskCard({
 
   const renderButtonIcon = () => {
     if (isDone) {
-      return <Check size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
+      return <Check size={14} style={{ color: '#fff' }} strokeWidth={2.5} />
     }
-    // Mobile hollow circle with green tick
     if (isMobile) {
       return <Check size={14} style={{ color: 'var(--teal)' }} strokeWidth={2.5} />
     }
@@ -223,16 +220,20 @@ export function TaskCard({
   }
 
   const buttonTitle = isDone
-    ? 'Undo — move back to Todo'
+    ? pendingUndo ? 'Tap again to confirm undo' : 'Tap to undo'
     : task.is_recurring
       ? 'Complete this cycle'
       : 'Mark complete'
 
   return (
     <div
-      onClick={() => { if (pendingUndo) { setPendingUndo(false); return } onCardClick(task) }}
+      onClick={() => {
+        // Tapping card body while pending → cancel undo instead of opening modal
+        if (pendingUndo) { setPendingUndo(false); return }
+        onCardClick(task)
+      }}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseLeave={() => { setHovered(false); setPendingUndo(false) }}
       className={`relative rounded-xl cursor-pointer card-lift ${isDragging ? 'opacity-30 scale-95' : ''}`}
       style={{
         background: isOverdue ? 'color-mix(in srgb, var(--bg3) 92%, rgba(248,113,113,0.5))' : 'var(--bg3)',
@@ -310,7 +311,7 @@ export function TaskCard({
               </span>
             )}
 
-            {/* Project pill */}
+            {/* Space pill */}
             {project && (
               <span
                 className="font-syne text-xs px-2 py-0.5 rounded-full font-500"
@@ -428,34 +429,61 @@ export function TaskCard({
       </div>
 
       {/*
-        Action button — always rendered so the opacity/scale transition is smooth.
-        Visibility is controlled by opacity + scale (not display/hidden).
+        Undo nudge — appears left of the tick when pendingUndo is true.
+        pointer-events-none keeps it from intercepting taps on the card.
+        right-12 keeps it clear of the button (w-8 + right-3 + gap).
+      */}
+      {isDone && pendingUndo && (
+        <div
+          className="absolute right-12 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg pointer-events-none"
+          style={{
+            background: 'rgba(244,63,94,0.12)',
+            border:     '1px solid rgba(244,63,94,0.3)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <span
+            className="font-syne font-600"
+            style={{ color: 'var(--rose, #f43f5e)', fontSize: 11 }}
+          >
+            Undo?
+          </span>
+        </div>
+      )}
 
-        Behaviour matrix:
-          isOldCompleted → always hidden (opacity 0, scale 0.75)
-          isDone         → always visible, filled teal, click = undo
-          isMobile + !done → always visible, hollow circle, tap = complete
-          web + !done    → visible on hover only, filled colour, click = complete
+      {/*
+        Action button — always rendered so opacity/scale transitions are smooth.
+
+        Behaviour:
+          isOldCompleted        → hidden (opacity 0, pointer-events none)
+          isDone, first tap     → teal → rose, shows "Undo?" nudge
+          isDone, second tap    → confirms undo, calls onUndoDone
+          isMobile + !done      → hollow circle, always visible
+          web + !done + hovered → filled, visible on hover only
       */}
       <button
-        onClick={handleActionClick}
+        onClick={(e) => {
+          e.stopPropagation()
+          handleActionClick()
+        }}
         onTouchEnd={(e) => {
-          // preventDefault stops the browser synthesising a click event after touchend
+          // preventDefault stops the browser from also firing a synthetic
+          // click event after touchend — without this, the first tap would
+          // set pendingUndo=true and the synthesised click would immediately
+          // call handleActionClick again, confirming the undo in one touch.
           e.preventDefault()
           e.stopPropagation()
-          handleActionClick(e)
+          handleActionClick()
         }}
         className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150"
         style={{
           ...getButtonStyle(),
-          opacity:   isOldCompleted ? 0 : buttonVisible ? 1 : 0,
-          transform: `translateY(-50%) scale(${isOldCompleted || !buttonVisible ? 0.75 : 1})`,
-          // Prevent pointer events when invisible to avoid accidental taps
+          opacity:       isOldCompleted ? 0 : buttonVisible ? 1 : 0,
+          transform:     `translateY(-50%) scale(${isOldCompleted || !buttonVisible ? 0.75 : 1})`,
           pointerEvents: isOldCompleted || !buttonVisible ? 'none' : 'auto',
         }}
         title={buttonTitle}
         aria-label={buttonTitle}
-        // Prevent tab-focusing hidden buttons
         tabIndex={isOldCompleted || !buttonVisible ? -1 : 0}
       >
         {renderButtonIcon()}

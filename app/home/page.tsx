@@ -53,18 +53,23 @@ export default function HomePage() {
 
   useEffect(() => {
     const load = async () => {
-      setLoading(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      setCurrentUserId(user?.id ?? null)
-      setDisplayName(user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'there')
+      try {
+        setLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        setCurrentUserId(user?.id ?? null)
+        setDisplayName(user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'there')
 
-      const [{ data: pd }, { data: td }] = await Promise.all([
-        db('projects').select('*'),
-        db('tasks').select('*'),
-      ])
-      setProjects((pd || []) as Project[])
-      setTasks((td || []) as Task[])
-      setLoading(false)
+        const [{ data: pd }, { data: td }] = await Promise.all([
+          db('projects').select('*'),
+          db('tasks').select('*'),
+        ])
+        setProjects((pd || []) as Project[])
+        setTasks((td || []) as Task[])
+      } catch (err) {
+        console.error('Home page load error:', err)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,7 +116,7 @@ export default function HomePage() {
   const statCards = [
     { label: 'Tasks done',   value: report.tasksCompleted,   color: 'var(--teal)',   dim: 'var(--teal-dim)'   },
     { label: 'Hours logged', value: `${report.totalHours}h`, color: 'var(--amber)',  dim: 'var(--amber-dim)'  },
-    { label: 'Projects',     value: report.projectsActive,   color: 'var(--violet)', dim: 'var(--violet-dim)' },
+    { label: 'Spaces',     value: report.projectsActive,   color: 'var(--violet)', dim: 'var(--violet-dim)' },
     { label: 'Categories',   value: report.categoriesUsed,   color: 'var(--rose)',   dim: 'var(--rose-dim)'   },
   ]
 
@@ -133,9 +138,9 @@ export default function HomePage() {
       dim:   'var(--teal-dim)',
     },
     {
-      href:  '/projects',
-      label: 'Projects',
-      sub:   'Manage your projects',
+      href:  '/spaces',
+      label: 'Spaces',
+      sub:   'Manage your spaces',
       Icon:  FolderKanban,
       color: 'var(--violet)',
       dim:   'var(--violet-dim)',
@@ -276,10 +281,10 @@ export default function HomePage() {
                   className="font-mono text-xs uppercase tracking-widest"
                   style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
                 >
-                  Your Projects
+                  Your Spaces
                 </h2>
                 <Link
-                  href="/projects"
+                  href="/spaces"
                   className="font-mono text-xs transition-colors duration-150"
                   style={{ color: 'var(--text3)' }}
                   onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--amber)')}
