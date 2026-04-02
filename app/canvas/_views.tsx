@@ -41,9 +41,10 @@ export default function ViewsPage() {
   const router       = useRouter()
   const { view, setView } = useView()
 
-  // Always open Canvas in board view
+  // On web, always open Canvas in board view. On mobile, respect the view
+  // selected via the BottomNav sheet so the user's explicit choice is honoured.
   useEffect(() => {
-    setView('kanban')
+    if (!isMobile) setView('kanban')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

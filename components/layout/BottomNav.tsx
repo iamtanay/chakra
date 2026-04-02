@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, FolderKanban, BarChart3, Star, Settings, Sun, Moon, SunMoon, LogOut, X, Pencil, Check, List, CalendarDays } from 'lucide-react'
+import { LayoutDashboard, LayoutGrid, BarChart3, Home, Star, Settings, Sun, Moon, SunMoon, LogOut, X, Pencil, Check, List, CalendarDays } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
@@ -10,10 +10,10 @@ import { useView, type ViewMode } from '@/lib/viewContext'
 import { NotificationToggle } from '@/components/ui/NotificationToggle'
 
 const NAV_ITEMS = [
-  { href: '/home',   label: 'Home',  Icon: BarChart3       },
+  { href: '/home',   label: 'Home',  Icon: Home           },
   { href: '/canvas',   label: 'Canvas',  Icon: LayoutDashboard },
   { href: '/today',  label: 'Today', Icon: Star            },
-  { href: '/spaces', label: 'Spaces', Icon: FolderKanban   },
+  { href: '/spaces', label: 'Spaces', Icon: LayoutGrid     },
 ]
 
 const VIEW_OPTIONS: { value: ViewMode; label: string; Icon: React.ElementType; desc: string }[] = [

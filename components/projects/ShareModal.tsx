@@ -165,7 +165,7 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
       // Check if already a member
       const alreadyMember = members.some((m) => m.user_id === targetUserId)
       if (alreadyMember) {
-        setError('This user already has access to this project.')
+        setError('This user already has access to this space.')
         return
       }
 
@@ -184,7 +184,7 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
       if (insertError) {
         // Duplicate key — shouldn't happen since we check above, but be safe
         if (insertError.code === '23505') {
-          setError('This user already has access to this project.')
+          setError('This user already has access to this space.')
         } else {
           throw insertError
         }
@@ -309,8 +309,8 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
         {/* Role description */}
         <p className="font-mono text-xs mt-1.5" style={{ color: 'var(--text3)' }}>
           {role === 'editor'
-            ? 'Editors can create, edit, and delete tasks, and edit project settings.'
-            : 'Viewers can see the project and tasks but cannot make changes.'}
+            ? 'Editors can create, edit, and delete tasks, and edit space settings.'
+            : 'Viewers can see the space and tasks but cannot make changes.'}
         </p>
       </div>
 
@@ -344,7 +344,7 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
         }}
       >
         <UserPlus size={15} />
-        {loading ? 'Adding…' : 'Share project'}
+        {loading ? 'Adding…' : 'Share space'}
       </button>
 
       {/* Divider */}
@@ -466,7 +466,7 @@ export function ShareModal({ isOpen, onClose, project }: ShareModalProps) {
       >
         <Crown size={12} style={{ color: 'var(--amber)', flexShrink: 0 }} />
         <p className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
-          You are the owner. Only you can share, manage members, and delete this project.
+          You are the owner. Only you can share, manage members, and delete this space.
         </p>
       </div>
     </div>

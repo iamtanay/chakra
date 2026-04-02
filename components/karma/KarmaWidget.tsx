@@ -211,38 +211,33 @@ function EditModal({ rituals, onClose, onSave, userId }: EditModalProps) {
   const [list,     setList]     = useState<Ritual[]>([...rituals])
   const [newEmoji, setNewEmoji] = useState('✦')
   const [newLabel, setNewLabel] = useState('')
-  const [saving,   setSaving]   = useState(false)
   const isMobile = useMediaQuery('(max-width: 768px)')
 
-  const addRitual = () => {
+  // Immediately insert a new ritual into the DB and update local state
+  const addRitual = async () => {
     const label = newLabel.trim()
     if (!label) return
-    setList((prev) => [...prev, {
-      id: `new-${Date.now()}`, label,
-      emoji: newEmoji.trim() || '✦', position: prev.length,
-    }])
+    const emoji = newEmoji.trim() || '✦'
+    const position = list.length
     setNewLabel('')
     setNewEmoji('✦')
+    const { data } = await db('karma_rituals')
+      .insert([{ user_id: userId, label, emoji, position }])
+      .select()
+    const inserted: Ritual[] = data || []
+    if (inserted.length) {
+      const updated = [...list, ...inserted]
+      setList(updated)
+      onSave(updated)
+    }
   }
 
-  const handleSave = async () => {
-    setSaving(true)
-    const toInsert = list.filter((r) => r.id.startsWith('new-'))
-    const toKeep   = list.filter((r) => !r.id.startsWith('new-'))
-    const toDelete = rituals.filter((r) => !list.find((l) => l.id === r.id)).map((r) => r.id)
-
-    if (toDelete.length) await db('karma_rituals').delete().in('id', toDelete)
-    let inserted: Ritual[] = []
-    if (toInsert.length) {
-      const { data } = await db('karma_rituals').insert(
-        toInsert.map((r, i) => ({ user_id: userId, label: r.label, emoji: r.emoji, position: toKeep.length + i }))
-      ).select()
-      inserted = data || []
-    }
-    await Promise.all(toKeep.map((r, i) => db('karma_rituals').update({ position: i }).eq('id', r.id)))
-    onSave([...toKeep, ...inserted])
-    setSaving(false)
-    onClose()
+  // Immediately delete a ritual from the DB and update local state
+  const deleteRitual = async (id: string) => {
+    const updated = list.filter((x) => x.id !== id)
+    setList(updated)
+    onSave(updated)
+    await db('karma_rituals').delete().eq('id', id)
   }
 
   const inner = (
@@ -258,7 +253,7 @@ function EditModal({ rituals, onClose, onSave, userId }: EditModalProps) {
             <span className="text-base w-6 text-center flex-shrink-0">{r.emoji}</span>
             <span className="flex-1 font-syne text-sm truncate" style={{ color: 'var(--text)' }}>{r.label}</span>
             <button
-              onClick={() => setList((p) => p.filter((x) => x.id !== r.id))}
+              onClick={() => deleteRitual(r.id)}
               className="w-6 h-6 flex items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-150 flex-shrink-0"
               style={{ color: 'var(--text3)' }}
               onMouseEnter={(e) => { e.currentTarget.style.color = '#f87171' }}
@@ -303,16 +298,6 @@ function EditModal({ rituals, onClose, onSave, userId }: EditModalProps) {
           <Plus size={15} />
         </button>
       </div>
-
-      {/* Save */}
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="w-full py-2.5 rounded-xl font-syne font-600 text-sm transition-all duration-150"
-        style={{ background: 'var(--amber)', color: '#0a0a0a', opacity: saving ? 0.6 : 1 }}
-      >
-        {saving ? 'Saving…' : 'Save rituals'}
-      </button>
     </div>
   )
 

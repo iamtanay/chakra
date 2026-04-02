@@ -213,7 +213,7 @@ export function ProjectModal({
           style={{ background: 'var(--bg3)', border: '1px solid var(--border)' }}
         >
           <p className="font-mono text-xs uppercase tracking-widest mb-1"
-             style={{ color: 'var(--text3)' }}>Project</p>
+             style={{ color: 'var(--text3)' }}>Space</p>
           <p className="font-syne font-700 text-base" style={{ color: 'var(--text)' }}>{project.name}</p>
         </div>
         <div className="flex gap-3">
@@ -268,7 +268,7 @@ export function ProjectModal({
         )}
 
         <p className="font-mono text-xs text-center" style={{ color: 'var(--text3)' }}>
-          You have view-only access to this project.
+          You have view-only access to this space.
         </p>
         <button
           onClick={onClose}
@@ -289,7 +289,7 @@ export function ProjectModal({
   const content = (
     <div className="space-y-5">
       <Input
-        label="Project name"
+        label="Space name"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="e.g. Portfolio Site"
@@ -374,7 +374,7 @@ export function ProjectModal({
               ) : (
                 <div className="py-4 text-center">
                   <p className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
-                    No recurring tasks in this project.
+                    No recurring tasks in this space.
                   </p>
                 </div>
               )}
@@ -405,7 +405,7 @@ export function ProjectModal({
               opacity:    !canDelete && !deleteConfirm ? 0.4 : 1,
             }}
           >
-            {deleteConfirm ? 'Confirm' : 'Delete project'}
+            {deleteConfirm ? 'Confirm' : 'Delete space'}
           </button>
         )}
       </div>

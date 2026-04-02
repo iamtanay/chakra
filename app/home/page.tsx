@@ -520,7 +520,7 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* Insights */}
+              {/* Reflections */}
               {report.insights.length > 0 && (
                 <div
                   className="rounded-2xl p-6"
@@ -530,7 +530,7 @@ export default function HomePage() {
                     className="font-mono text-xs uppercase tracking-widest mb-4"
                     style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
                   >
-                    Insights
+                    Reflections
                   </h2>
                   <div className="space-y-3">
                     {report.insights.map((insight, i) => (
