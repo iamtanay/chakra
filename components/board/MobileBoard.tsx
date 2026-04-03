@@ -48,7 +48,15 @@ export function MobileBoard({
   const touchStartX = useRef(0)
   const touchStartY = useRef(0)
   const projectsMap = new Map(projects.map((p) => [p.id, p]))
-  const col = sortTasks(tasks.filter((t) => t.status === activeStatus))
+  const cutoff48h = Date.now() - 48 * 60 * 60 * 1000
+  const col = sortTasks(tasks.filter((t) => {
+    if (t.status !== activeStatus) return false
+    if (activeStatus === 'Done') {
+      // Mobile Done lane: only show tasks completed in the last 48 hours
+      return !!t.completed_at && new Date(t.completed_at).getTime() >= cutoff48h
+    }
+    return true
+  }))
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!canWrite) return
@@ -100,7 +108,9 @@ export function MobileBoard({
       >
         {STATUS_LIST.map((status) => {
           const active = activeStatus === status
-          const count  = tasks.filter((t) => t.status === status).length
+          const count  = status === 'Done'
+            ? tasks.filter((t) => t.status === 'Done' && !!t.completed_at && new Date(t.completed_at).getTime() >= cutoff48h).length
+            : tasks.filter((t) => t.status === status).length
           const cfg    = statusConfig[status]
           return (
             <button

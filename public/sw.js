@@ -67,6 +67,8 @@ self.addEventListener('notificationclick', (event) => {
       if (clients.openWindow) {
         return clients.openWindow(url)
       }
+    }).catch((err) => {
+      console.error('[SW] notificationclick handler failed:', err)
     })
   )
 })

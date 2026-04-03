@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Logo } from '@/components/ui/Logo'
-import { LogOut, LayoutDashboard, LayoutGrid, Home, Star, Sun, Moon, SunMoon, Pencil, Check, X, ChevronUp } from 'lucide-react'
+import { LogOut, LayoutDashboard, Orbit, Home, Star, Sun, Moon, SunMoon, Pencil, Check, X, ChevronUp } from 'lucide-react'
 import type { Project } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
 import { useView } from '@/lib/viewContext'
@@ -20,7 +20,7 @@ const NAV_ITEMS = [
   { href: '/home',   label: 'Home',  Icon: Home           },
   { href: '/canvas',   label: 'Canvas',  Icon: LayoutDashboard },
   { href: '/today',  label: 'Today', Icon: Star            },
-  { href: '/spaces', label: 'Spaces', Icon: LayoutGrid     },
+  { href: '/spaces', label: 'Spaces', Icon: Orbit     },
 ]
 
 

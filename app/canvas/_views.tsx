@@ -41,12 +41,21 @@ export default function ViewsPage() {
   const router       = useRouter()
   const { view, setView } = useView()
 
-  // On web, always open Canvas in board view. On mobile, respect the view
-  // selected via the BottomNav sheet so the user's explicit choice is honoured.
+  // useMediaQuery initialises to `false` (SSR-safe), so we must wait until
+  // it has actually evaluated against the real viewport before deciding
+  // whether to force kanban. Without the `mounted` guard, the effect would
+  // always fire with isMobile=false on the first render and clobber whatever
+  // view the user chose from the BottomNav sheet.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
+  // On desktop (web), always force Board/Kanban view.
+  // On mobile, respect whatever view the user selected via the BottomNav sheet.
   useEffect(() => {
+    if (!mounted) return        // wait for real viewport value
     if (!isMobile) setView('kanban')
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [mounted, isMobile])
 
   const [tasks,         setTasks]         = useState<Task[]>([])
   const [projects,      setProjects]      = useState<Project[]>([])
@@ -460,7 +469,7 @@ export default function ViewsPage() {
       />
 
       {/* DailyPulse — shown for ALL views */}
-      <DailyPulse tasks={tasks} projects={projects} selectedProjectId={selectedProjectId} />
+      <DailyPulse tasks={tasks} projects={projects} selectedProjectId={selectedProjectId} currentUserId={currentUserId} />
 
       {/* Content area */}
       <div className="flex-1 overflow-auto p-4 md:p-6">

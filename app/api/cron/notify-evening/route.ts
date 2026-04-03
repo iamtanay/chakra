@@ -118,7 +118,7 @@ export async function GET(request: Request) {
     // Include owner_id for per-user filtering
     const { data: doneTodayRaw, error: doneError } = await supabase
       .from('tasks')
-      .select('id, title, actual_hours, completed_at, today_flag, due_date, next_due_date, is_recurring, project_id, projects(name, color, owner_id)')
+      .select('id, title, actual_hours, completed_at, completed_by, today_flag, due_date, next_due_date, is_recurring, project_id, projects(name, color, owner_id)')
       .eq('status', 'Done')
       .gte('completed_at', todayStart)
       .lte('completed_at', todayEnd)
@@ -191,7 +191,8 @@ export async function GET(request: Request) {
         }
 
         // Filter all three task sets down to this user's accessible tasks
-        const userDoneToday        = doneToday.filter(canSee)
+        // For completed tasks: only include ones the subscriber themselves completed
+        const userDoneToday        = doneToday.filter((t) => canSee(t) && (!t.completed_by || t.completed_by === sub.user_id))
         const userTodayFlagPending = todayFlagPending.filter(canSee)
         const userDuePending       = duePendingFiltered.filter(canSee)
 

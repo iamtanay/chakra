@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, LayoutGrid, BarChart3, Home, Star, Settings, Sun, Moon, SunMoon, LogOut, X, Pencil, Check, List, CalendarDays } from 'lucide-react'
+import { LayoutDashboard, Orbit, BarChart3, Home, Star, Settings, Sun, Moon, SunMoon, LogOut, X, Pencil, Check, List, CalendarDays } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/hooks/useTheme'
@@ -13,7 +13,7 @@ const NAV_ITEMS = [
   { href: '/home',   label: 'Home',  Icon: Home           },
   { href: '/canvas',   label: 'Canvas',  Icon: LayoutDashboard },
   { href: '/today',  label: 'Today', Icon: Star            },
-  { href: '/spaces', label: 'Spaces', Icon: LayoutGrid     },
+  { href: '/spaces', label: 'Spaces', Icon: Orbit     },
 ]
 
 const VIEW_OPTIONS: { value: ViewMode; label: string; Icon: React.ElementType; desc: string }[] = [

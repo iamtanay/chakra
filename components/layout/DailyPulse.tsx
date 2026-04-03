@@ -8,6 +8,7 @@ interface DailyPulseProps {
   tasks: Task[]
   projects: Project[]
   selectedProjectId?: string | null
+  currentUserId?: string | null
 }
 
 /**
@@ -18,7 +19,7 @@ function fmtHours(raw: number): string {
   return (Math.round(raw * 100) / 100).toFixed(2)
 }
 
-export function DailyPulse({ tasks, projects, selectedProjectId }: DailyPulseProps) {
+export function DailyPulse({ tasks, projects, selectedProjectId, currentUserId }: DailyPulseProps) {
   const pulse = useMemo(() => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -31,6 +32,8 @@ export function DailyPulse({ tasks, projects, selectedProjectId }: DailyPulsePro
     const completedToday = scopedTasks.filter((t) => {
       if (t.status !== 'Done') return false
       if (!t.completed_at) return false
+      // Only count tasks completed by the current user
+      if (currentUserId && t.completed_by && t.completed_by !== currentUserId) return false
       const d = new Date(t.completed_at)
       d.setHours(0, 0, 0, 0)
       return d.getTime() === today.getTime()

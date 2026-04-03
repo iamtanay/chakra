@@ -170,7 +170,7 @@ export function TaskCard({
     if (isMobile) {
       return {
         background: 'transparent',
-        border:     '2px solid var(--teal)',
+        border:     `2px solid ${task.is_recurring ? 'var(--amber)' : 'var(--teal)'}`,
         boxShadow:  'none',
       }
     }
@@ -210,11 +210,11 @@ export function TaskCard({
     if (isDone) {
       return <Check size={14} style={{ color: '#fff' }} strokeWidth={2.5} />
     }
+    if (task.is_recurring) {
+      return <RefreshCw size={13} style={{ color: isMobile ? 'var(--amber)' : '#080909' }} strokeWidth={2.5} />
+    }
     if (isMobile) {
       return <Check size={14} style={{ color: 'var(--teal)' }} strokeWidth={2.5} />
-    }
-    if (task.is_recurring) {
-      return <RefreshCw size={13} style={{ color: '#080909' }} strokeWidth={2.5} />
     }
     return <Check size={14} style={{ color: '#080909' }} strokeWidth={2.5} />
   }

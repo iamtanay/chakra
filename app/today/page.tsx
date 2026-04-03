@@ -128,9 +128,17 @@ export default function TodayPage() {
   }, [tasks, todayStr])
 
   const doneTodayTasks = useMemo(() => {
-    return tasks.filter((t) => t.status === 'Done' && isInToday(t))
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    return tasks.filter((t) => {
+      if (t.status !== 'Done') return false
+      // Only show tasks completed by the current user
+      if (userId && t.completed_by && t.completed_by !== userId) return false
+      // Must have been completed in the last 24 hours
+      if (!t.completed_at) return false
+      return new Date(t.completed_at) >= cutoff
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, todayStr])
+  }, [tasks, todayStr, userId])
 
   const projectsMap = useMemo(
     () => new Map(projects.map((p) => [p.id, p])),
@@ -245,7 +253,7 @@ export default function TodayPage() {
       />
 
       {/* DailyPulse strip */}
-      <DailyPulse tasks={tasks} projects={projects} selectedProjectId={null} />
+      <DailyPulse tasks={tasks} projects={projects} selectedProjectId={null} currentUserId={userId} />
 
       {/* Body */}
       <div className="flex-1 overflow-auto p-4 md:p-6">

@@ -26,6 +26,7 @@ export interface TaskRow {
   is_recurring?:  boolean
   actual_hours?:  number | null
   completed_at?:  string | null
+  completed_by?:  string | null
   project_id:   string
   projects?: {
     name:     string

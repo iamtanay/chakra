@@ -11,6 +11,7 @@ import { PageTopBar } from '@/components/layout/PageTopBar'
 import { PillToggle } from '@/components/ui/PillToggle'
 import Link from 'next/link'
 import type { Task, Project } from '@/types'
+import { useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   Star,
@@ -38,6 +39,7 @@ function getGreeting(name: string): { greeting: string; sub: string } {
 
 export default function HomePage() {
   const supabase = createClient()
+  const router = useRouter()
   const [projects,      setProjects]      = useState<Project[]>([])
   const [tasks,         setTasks]         = useState<Task[]>([])
   const [loading,       setLoading]       = useState(true)
@@ -102,6 +104,85 @@ export default function HomePage() {
   const topStreak = useMemo(() => {
     return tasks.reduce((max, t) => Math.max(max, t.current_streak ?? 0), 0)
   }, [tasks])
+
+  // ── Activity chart data — responds to timeRange ───────────────────────────
+  const activityData = useMemo(() => {
+    const now = new Date()
+    const todayISO = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+
+    const taskCount = (iso: string) =>
+      tasks.filter((t) => {
+        if (!t.completed_at) return false
+        if (currentUserId && t.completed_by !== currentUserId) return false
+        return t.completed_at.slice(0, 10) === iso
+      }).length
+
+    if (timeRange === 'week') {
+      const days: { label: string; shortLabel: string; date: string; count: number; isToday: boolean }[] = []
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(now.getDate() - i)
+        const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+        days.push({
+          label:      d.toLocaleDateString('en-US', { weekday: 'long' }),
+          shortLabel: d.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2),
+          date:    iso,
+          count:   taskCount(iso),
+          isToday: i === 0,
+        })
+      }
+      return { type: 'week' as const, days }
+    }
+
+    if (timeRange === 'month') {
+      const year  = now.getFullYear()
+      const month = now.getMonth()
+      const daysInMonth = new Date(year, month + 1, 0).getDate()
+      // firstDow: 0=Sun..6=Sat → we want Mon-start, so offset
+      const firstDow = new Date(year, month, 1).getDay() // 0=Sun
+      const startOffset = (firstDow + 6) % 7             // Mon=0..Sun=6
+      const cells: { date: string; count: number; isToday: boolean; inMonth: boolean; day: number }[] = []
+      // leading empty cells
+      for (let i = 0; i < startOffset; i++) {
+        cells.push({ date: '', count: 0, isToday: false, inMonth: false, day: 0 })
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+        cells.push({ date: iso, count: taskCount(iso), isToday: iso === todayISO, inMonth: true, day: d })
+      }
+      // trailing cells to complete final row
+      const remainder = cells.length % 7
+      if (remainder > 0) {
+        for (let i = 0; i < 7 - remainder; i++) {
+          cells.push({ date: '', count: 0, isToday: false, inMonth: false, day: 0 })
+        }
+      }
+      const monthName = now.toLocaleDateString('en-US', { month: 'long' })
+      return { type: 'month' as const, cells, monthName, year }
+    }
+
+    // year
+    const year = now.getFullYear()
+    const currentMonth = now.getMonth()
+    const months: { label: string; shortLabel: string; count: number; isCurrent: boolean; monthIdx: number }[] = []
+    for (let m = 0; m < 12; m++) {
+      const monthStart = `${year}-${String(m+1).padStart(2,'0')}-01`
+      const daysInM = new Date(year, m + 1, 0).getDate()
+      let count = 0
+      for (let d = 1; d <= daysInM; d++) {
+        const iso = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+        count += taskCount(iso)
+      }
+      months.push({
+        label:      new Date(year, m, 1).toLocaleDateString('en-US', { month: 'long' }),
+        shortLabel: new Date(year, m, 1).toLocaleDateString('en-US', { month: 'short' }),
+        count,
+        isCurrent:  m === currentMonth,
+        monthIdx:   m,
+      })
+    }
+    return { type: 'year' as const, months, year }
+  }, [tasks, currentUserId, timeRange])
 
   const { greeting, sub } = getGreeting(displayName)
 
@@ -223,15 +304,16 @@ export default function HomePage() {
                   </div>
                 )}
                 {todayPulse.dueToday > 0 && (
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl"
-                    style={{ background: 'var(--violet-dim)', border: '1px solid rgba(167,139,250,0.15)' }}
+                  <button
+                    onClick={() => router.push('/today')}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-150"
+                    style={{ background: 'var(--violet-dim)', border: '1px solid rgba(167,139,250,0.15)', cursor: 'pointer' }}
                   >
                     <Zap size={13} style={{ color: 'var(--violet)' }} />
                     <span className="font-mono text-xs" style={{ color: 'var(--text2)' }}>
                       <span style={{ color: 'var(--violet)', fontWeight: 600 }}>{todayPulse.dueToday}</span> due today
                     </span>
-                  </div>
+                  </button>
                 )}
               </div>
             </div>
@@ -365,6 +447,214 @@ export default function HomePage() {
             </div>
           ) : (
             <>
+              {/* ── Activity chart ── */}
+              {(() => {
+                // ── shared header values ──
+                let total = 0
+                let bestLabel = ''
+                let bestCount = 0
+                let periodLabel = ''
+
+                if (activityData.type === 'week') {
+                  total = activityData.days.reduce((s, d) => s + d.count, 0)
+                  const best = activityData.days.reduce((b, d) => d.count > b.count ? d : b, activityData.days[0]!)
+                  bestLabel = best.count > 0 ? best.label.slice(0, 3) : ''
+                  bestCount = best.count
+                  periodLabel = 'This Week'
+                } else if (activityData.type === 'month') {
+                  total = activityData.cells.filter(c => c.inMonth).reduce((s, c) => s + c.count, 0)
+                  const best = activityData.cells.filter(c => c.inMonth).reduce((b, c) => c.count > b.count ? c : b, activityData.cells.find(c => c.inMonth)!)
+                  bestLabel = best && best.count > 0 ? `${activityData.monthName.slice(0,3)} ${best.day}` : ''
+                  bestCount = best ? best.count : 0
+                  periodLabel = activityData.monthName
+                } else {
+                  total = activityData.months.reduce((s, m) => s + m.count, 0)
+                  const best = activityData.months.reduce((b, m) => m.count > b.count ? m : b, activityData.months[0]!)
+                  bestLabel = best.count > 0 ? best.shortLabel : ''
+                  bestCount = best.count
+                  periodLabel = String(activityData.year)
+                }
+
+                // ── amber intensity helper (relative within period) ──
+                const maxInPeriod = (() => {
+                  if (activityData.type === 'week') return Math.max(...activityData.days.map(d => d.count), 1)
+                  if (activityData.type === 'month') return Math.max(...activityData.cells.filter(c => c.inMonth).map(c => c.count), 1)
+                  return Math.max(...activityData.months.map(m => m.count), 1)
+                })()
+
+                const cellBg = (count: number, isHighlight: boolean, isEmpty: boolean) => {
+                  if (isEmpty) return 'transparent'
+                  if (count === 0) return 'var(--bg4)'
+                  const intensity = count / maxInPeriod
+                  if (isHighlight) {
+                    // amber with full intensity glow
+                    return `rgba(232,162,71,${0.25 + intensity * 0.75})`
+                  }
+                  return `rgba(232,162,71,${0.12 + intensity * 0.68})`
+                }
+
+                const cellGlow = (count: number, isHighlight: boolean) => {
+                  if (count === 0 || !isHighlight) return undefined
+                  const intensity = count / maxInPeriod
+                  return `0 0 ${6 + intensity * 8}px rgba(232,162,71,${0.2 + intensity * 0.4})`
+                }
+
+                return (
+                  <div
+                    className="rounded-2xl p-5 md:p-6"
+                    style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
+                  >
+                    {/* Header */}
+                    <div className="flex items-end justify-between mb-5">
+                      <div>
+                        <h2 className="font-mono text-xs uppercase tracking-widest" style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}>
+                          Activity · {periodLabel}
+                        </h2>
+                        <p className="font-syne font-700 text-xl mt-1" style={{ color: 'var(--text)', lineHeight: 1 }}>
+                          {total}
+                          <span className="font-syne font-400 text-sm ml-1.5" style={{ color: 'var(--text3)' }}>tasks done</span>
+                        </p>
+                      </div>
+                      {bestCount > 0 && (
+                        <p className="font-mono text-xs" style={{ color: 'var(--text3)' }}>
+                          best <span style={{ color: 'var(--amber)' }}>{bestLabel}</span> · {bestCount}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* ── Week: bar chart ── */}
+                    {activityData.type === 'week' && (
+                      <div className="flex items-end gap-1.5" style={{ height: 80 }}>
+                        {activityData.days.map((day) => {
+                          const heightPct = day.count / maxInPeriod
+                          const barH = Math.max(heightPct * 56, day.count > 0 ? 6 : 2)
+                          const isBest = day.count > 0 && day.count === maxInPeriod
+                          return (
+                            <div key={day.date} className="flex-1 flex flex-col items-center justify-end gap-1.5">
+                              <span className="font-mono transition-opacity duration-300" style={{ fontSize: 10, color: isBest ? 'var(--amber)' : 'var(--text3)', opacity: day.count > 0 ? 1 : 0 }}>
+                                {day.count > 0 ? day.count : ''}
+                              </span>
+                              <div
+                                className="w-full rounded-t-md transition-all duration-700"
+                                style={{
+                                  height: barH,
+                                  background: cellBg(day.count, day.isToday || isBest, false),
+                                  boxShadow: cellGlow(day.count, day.isToday || isBest),
+                                  opacity: day.count === 0 ? 0.35 : 1,
+                                }}
+                              />
+                              <span className="font-mono" style={{ fontSize: 10, color: day.isToday ? 'var(--amber)' : 'var(--text3)', fontWeight: day.isToday ? 700 : 400 }}>
+                                {day.shortLabel}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* ── Month: calendar heatmap ── */}
+                    {activityData.type === 'month' && (
+                      <div>
+                        {/* Day-of-week headers */}
+                        <div className="grid grid-cols-7 gap-1 mb-1">
+                          {['Mo','Tu','We','Th','Fr','Sa','Su'].map(d => (
+                            <div key={d} className="flex items-center justify-center" style={{ height: 16 }}>
+                              <span className="font-mono" style={{ fontSize: 9, color: 'var(--text3)', opacity: 0.6 }}>{d}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Cells */}
+                        <div className="grid grid-cols-7 gap-1">
+                          {activityData.cells.map((cell, i) => {
+                            const isBest = cell.inMonth && cell.count > 0 && cell.count === maxInPeriod
+                            return (
+                              <div
+                                key={i}
+                                className="relative flex items-center justify-center rounded-md transition-all duration-500"
+                                style={{
+                                  height:      28,
+                                  background:  cell.inMonth ? cellBg(cell.count, cell.isToday || isBest, false) : 'transparent',
+                                  boxShadow:   cell.inMonth ? cellGlow(cell.count, cell.isToday || isBest) : undefined,
+                                  outline:     cell.isToday ? '1.5px solid rgba(232,162,71,0.7)' : undefined,
+                                  outlineOffset: '0px',
+                                }}
+                                title={cell.inMonth && cell.count > 0 ? `${cell.date}: ${cell.count} task${cell.count !== 1 ? 's' : ''}` : undefined}
+                              >
+                                {cell.inMonth && (
+                                  <span
+                                    className="font-mono select-none"
+                                    style={{
+                                      fontSize:   10,
+                                      lineHeight: 1,
+                                      color:      cell.count > 0
+                                        ? (cell.count / maxInPeriod > 0.5 ? 'rgba(255,255,255,0.9)' : 'var(--amber)')
+                                        : 'var(--text3)',
+                                      opacity:    cell.count === 0 ? 0.4 : 1,
+                                      fontWeight: cell.isToday ? 700 : 400,
+                                    }}
+                                  >
+                                    {cell.day}
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Year: month heatmap strip ── */}
+                    {activityData.type === 'year' && (
+                      <div className="grid grid-cols-6 md:grid-cols-12 gap-2">
+                        {activityData.months.map((month) => {
+                          const isBest = month.count > 0 && month.count === maxInPeriod
+                          const isFuture = month.monthIdx > new Date().getMonth() && activityData.year === new Date().getFullYear()
+                          return (
+                            <div
+                              key={month.monthIdx}
+                              className="flex flex-col items-center gap-1.5 rounded-xl py-3 px-1 transition-all duration-500"
+                              style={{
+                                background:  isFuture ? 'transparent' : cellBg(month.count, month.isCurrent || isBest, false),
+                                boxShadow:   isFuture ? undefined : cellGlow(month.count, month.isCurrent || isBest),
+                                outline:     month.isCurrent ? '1.5px solid rgba(232,162,71,0.6)' : undefined,
+                                opacity:     isFuture ? 0.25 : 1,
+                              }}
+                              title={`${month.label}: ${month.count} task${month.count !== 1 ? 's' : ''}`}
+                            >
+                              <span
+                                className="font-mono"
+                                style={{
+                                  fontSize:   11,
+                                  color:      month.count > 0
+                                    ? (month.count / maxInPeriod > 0.5 ? 'rgba(255,255,255,0.85)' : 'var(--amber)')
+                                    : month.isCurrent ? 'var(--amber)' : 'var(--text3)',
+                                  fontWeight: month.isCurrent ? 700 : 400,
+                                  opacity:    month.count === 0 && !month.isCurrent ? 0.45 : 1,
+                                }}
+                              >
+                                {month.shortLabel}
+                              </span>
+                              {month.count > 0 && (
+                                <span
+                                  className="font-mono"
+                                  style={{
+                                    fontSize: 9,
+                                    color: month.count / maxInPeriod > 0.5 ? 'rgba(255,255,255,0.7)' : 'rgba(232,162,71,0.8)',
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  {month.count}
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
               {/* Stat cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {statCards.map((s) => (
@@ -380,55 +670,6 @@ export default function HomePage() {
                   </div>
                 ))}
               </div>
-
-              {/* By Space */}
-              {report.byProject.length > 0 && (
-                <div
-                  className="rounded-2xl p-6"
-                  style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}
-                >
-                  <h2
-                    className="font-mono text-xs uppercase tracking-widest mb-5"
-                    style={{ color: 'var(--text3)', letterSpacing: '0.12em' }}
-                  >
-                    By Space
-                  </h2>
-                  <div className="space-y-4">
-                    {report.byProject.map((p) => {
-                      const pct = report.totalHours > 0 ? (p.hours / report.totalHours) * 100 : 0
-                      return (
-                        <div key={p.projectId}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2.5">
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.projectColor }} />
-                              <span className="font-syne text-sm" style={{ color: 'var(--text)' }}>{p.projectName}</span>
-                              <span
-                                className="font-mono text-xs px-2 py-0.5 rounded"
-                                style={{ background: 'var(--bg4)', color: 'var(--text3)' }}
-                              >
-                                {p.projectType}
-                              </span>
-                            </div>
-                            <span className="font-mono text-xs" style={{ color: 'var(--text2)' }}>
-                              {p.count} tasks · {p.hours}h
-                            </span>
-                          </div>
-                          <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg5)' }}>
-                            <div
-                              className="h-full rounded-full transition-all duration-700"
-                              style={{
-                                width:     `${pct}%`,
-                                background: p.projectColor,
-                                boxShadow: `0 0 6px ${p.projectColor}50`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
 
               {/* By Category */}
               {report.byCategory.length > 0 && (
