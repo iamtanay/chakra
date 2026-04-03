@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   Star,
-  FolderKanban,
+  Orbit,
   ArrowRight,
   Flame,
   CheckCircle2,
@@ -222,7 +222,7 @@ export default function HomePage() {
       href:  '/spaces',
       label: 'Spaces',
       sub:   'Manage your spaces',
-      Icon:  FolderKanban,
+      Icon:  Orbit,
       color: 'var(--violet)',
       dim:   'var(--violet-dim)',
     },
