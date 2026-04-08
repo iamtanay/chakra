@@ -217,6 +217,51 @@ export type Database = {
           },
         ]
       }
+      // ── NEW TABLE ─────────────────────────────────────────────────────────
+      task_occurrences: {
+        Row: {
+          id: string
+          task_id: string
+          due_date: string          // ISO date YYYY-MM-DD — which cycle this was
+          status: string            // always 'Done' for now
+          actual_hours: number | null
+          completion_note: string | null
+          completed_at: string      // full ISO timestamp
+          completed_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          due_date: string
+          status?: string
+          actual_hours?: number | null
+          completion_note?: string | null
+          completed_at?: string
+          completed_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          due_date?: string
+          status?: string
+          actual_hours?: number | null
+          completion_note?: string | null
+          completed_at?: string
+          completed_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'task_occurrences_task_id_fkey'
+            columns: ['task_id']
+            isOneToOne: false
+            referencedRelation: 'tasks'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       push_subscriptions: {
         Row: {
           id: string

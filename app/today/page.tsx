@@ -10,10 +10,11 @@ import { CompleteModal } from '@/components/modals/CompleteModal'
 import { Logo } from '@/components/ui/Logo'
 import { Check, RefreshCw, Star, Flame } from 'lucide-react'
 import { KarmaWidget } from '@/components/karma/KarmaWidget'
-import type { Task, Project, Status } from '@/types'
+import type { Task, Project, Status, TaskOccurrence } from '@/types'
 import {
   advanceRecurringCycle,
   toISODate,
+  todayLocal,
   recurrenceLabel,
   parseLocalDate,
   isWarmStreak,
@@ -58,6 +59,7 @@ const categoryAbbr: Record<string, string> = {
 export default function TodayPage() {
   const [tasks,          setTasks]          = useState<Task[]>([])
   const [projects,       setProjects]       = useState<Project[]>([])
+  const [occurrences,    setOccurrences]    = useState<TaskOccurrence[]>([])
   const [loading,        setLoading]        = useState(true)
   const [logoSpin,       setLogoSpin]       = useState<'once' | 'fast' | 'loop' | null>('once')
   const [editingTask,    setEditingTask]    = useState<Task | null>(null)
@@ -75,14 +77,16 @@ export default function TodayPage() {
       setLoading(true)
       const { data: { user } } = await (createClient() as any).auth.getUser()
       setUserId(user?.id ?? null)
-      const [{ data: pd, error: pe }, { data: td, error: te }] = await Promise.all([
+      const [{ data: pd, error: pe }, { data: td, error: te }, { data: od }] = await Promise.all([
         db('projects').select('*'),
         db('tasks').select('*'),
+        db('task_occurrences').select('*'),
       ])
       if (pe) throw pe
       if (te) throw te
       setProjects((pd || []) as Project[])
       setTasks((td || []) as Task[])
+      setOccurrences((od || []) as TaskOccurrence[])
     } catch (err) {
       console.error('Today page load error:', err)
     } finally {
@@ -196,6 +200,31 @@ export default function TodayPage() {
       setLogoSpin('loop')
 
       if (task.is_recurring) {
+        const cycleDate = task.next_due_date ?? toISODate(todayLocal())
+        const now       = new Date().toISOString()
+
+        // ── Step A: write the occurrence record ───────────────────────────
+        const occurrencePayload = {
+          task_id:         task.id,
+          due_date:        cycleDate,
+          status:          'Done',
+          actual_hours:    hours,
+          completion_note: note,
+          completed_at:    now,
+          completed_by:    userId,
+        }
+        const { data: newOccurrence, error: occErr } = await db('task_occurrences')
+          .insert([occurrencePayload])
+          .select()
+          .single()
+
+        if (occErr) {
+          console.warn('Occurrence insert skipped (may already exist):', occErr.message)
+        } else if (newOccurrence) {
+          setOccurrences((prev) => [...prev, newOccurrence as TaskOccurrence])
+        }
+
+        // ── Step B: advance the master record to the next cycle ───────────
         const advanced = advanceRecurringCycle(task)
         const dbUpdate = {
           status:               advanced.status,
@@ -253,7 +282,7 @@ export default function TodayPage() {
       />
 
       {/* DailyPulse strip */}
-      <DailyPulse tasks={tasks} projects={projects} selectedProjectId={null} currentUserId={userId} />
+      <DailyPulse tasks={tasks} projects={projects} occurrences={occurrences} selectedProjectId={null} currentUserId={userId} />
 
       {/* Body */}
       <div className="flex-1 overflow-auto p-4 md:p-6">

@@ -10,7 +10,7 @@ import { KarmaWidget } from '@/components/karma/KarmaWidget'
 import { PageTopBar } from '@/components/layout/PageTopBar'
 import { PillToggle } from '@/components/ui/PillToggle'
 import Link from 'next/link'
-import type { Task, Project } from '@/types'
+import type { Task, Project, TaskOccurrence } from '@/types'
 import { useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
@@ -42,6 +42,7 @@ export default function HomePage() {
   const router = useRouter()
   const [projects,      setProjects]      = useState<Project[]>([])
   const [tasks,         setTasks]         = useState<Task[]>([])
+  const [occurrences,   setOccurrences]   = useState<TaskOccurrence[]>([])
   const [loading,       setLoading]       = useState(true)
   const [timeRange,     setTimeRange]     = useState<'week' | 'month' | 'year'>('week')
   const [displayName,   setDisplayName]   = useState('')
@@ -61,12 +62,14 @@ export default function HomePage() {
         setCurrentUserId(user?.id ?? null)
         setDisplayName(user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'there')
 
-        const [{ data: pd }, { data: td }] = await Promise.all([
+        const [{ data: pd }, { data: td }, { data: od }] = await Promise.all([
           db('projects').select('*'),
           db('tasks').select('*'),
+          db('task_occurrences').select('*'),
         ])
         setProjects((pd || []) as Project[])
         setTasks((td || []) as Task[])
+        setOccurrences((od || []) as TaskOccurrence[])
       } catch (err) {
         console.error('Home page load error:', err)
       } finally {
@@ -78,27 +81,42 @@ export default function HomePage() {
   }, [])
 
   const report = useMemo(
-    () => generateReportData(tasks, projects, timeRange, currentUserId),
-    [tasks, projects, timeRange, currentUserId]
+    () => generateReportData(tasks, projects, timeRange, currentUserId, occurrences),
+    [tasks, projects, timeRange, currentUserId, occurrences]
   )
 
   // ── Today's pulse ──────────────────────────────────────────────────────────
   const todayPulse = useMemo(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0)
+
+    // Non-recurring tasks completed today
     const myDoneToday = tasks.filter((t) => {
       if (!t.completed_at || !t.completed_by) return false
+      if (t.is_recurring) return false  // recurring hours come from occurrences
       if (currentUserId && t.completed_by !== currentUserId) return false
       const d = new Date(t.completed_at); d.setHours(0, 0, 0, 0)
       return d.getTime() === today.getTime()
     })
-    const hours = myDoneToday.reduce((s, t) => s + (t.actual_hours ?? t.estimated_hours ?? 0), 0)
+
+    // Recurring cycles completed today (from task_occurrences)
+    const myRecurringToday = occurrences.filter((o) => {
+      if (currentUserId && o.completed_by && o.completed_by !== currentUserId) return false
+      const d = new Date(o.completed_at); d.setHours(0, 0, 0, 0)
+      return d.getTime() === today.getTime()
+    })
+
+    const nonRecurringHours = myDoneToday.reduce((s, t) => s + (t.actual_hours ?? t.estimated_hours ?? 0), 0)
+    const recurringHours    = myRecurringToday.reduce((s, o) => s + (o.actual_hours ?? 0), 0)
+    const hours = Math.round((nonRecurringHours + recurringHours) * 100) / 100
+    const done  = myDoneToday.length + myRecurringToday.length
+
     const dueTodayCount = tasks.filter((t) => {
       if (t.status === 'Done') return false
       if (!t.due_date) return false
       return t.due_date.slice(0, 10) === today.toISOString().slice(0, 10)
     }).length
-    return { done: myDoneToday.length, hours: Math.round(hours * 100) / 100, dueToday: dueTodayCount }
-  }, [tasks, currentUserId])
+    return { done, hours, dueToday: dueTodayCount }
+  }, [tasks, occurrences, currentUserId])
 
   // ── My longest streak across all projects ─────────────────────────────────
   const topStreak = useMemo(() => {

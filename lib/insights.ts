@@ -1,4 +1,4 @@
-import type { Task, Project, Category } from '@/types'
+import type { Task, Project, Category, TaskOccurrence } from '@/types'
 
 export interface ReportData {
   tasksCompleted: number
@@ -18,9 +18,6 @@ export interface ReportData {
     count: number
     hours: number
   }>
-  // ── Drift ──────────────────────────────────────────────────────────────────
-  // Only included for categories that have ≥ MIN_DRIFT_SAMPLES tasks with
-  // both estimated_hours and actual_hours logged.
   driftByCategory: DriftEntry[]
   insights: string[]
   completedTasks: Task[]
@@ -30,43 +27,24 @@ export interface DriftEntry {
   category: Category
   /** actual / estimated ratio. 1.0 = spot on, >1 = took longer, <1 = faster */
   ratio: number
-  /** Number of tasks used to compute this ratio (only those with both est + actual) */
   sampleCount: number
 }
 
-/**
- * Minimum number of tasks that must have BOTH estimated_hours and actual_hours
- * before we surface a Drift figure. Below this threshold the data isn't
- * meaningful enough to present as a pattern.
- */
 export const MIN_DRIFT_SAMPLES = 3
 
-/**
- * Round a raw hours value to 2 decimal places.
- * 15 min (0.25 h) → 0.25, NOT 0.3.
- */
 function roundHours(raw: number): number {
   return Math.round(raw * 100) / 100
 }
 
 // ── Drift computation ─────────────────────────────────────────────────────────
 
-/**
- * Compute the actual/estimated hours ratio per category across all
- * completed tasks that have both values logged.
- *
- * Only returns entries where sampleCount >= MIN_DRIFT_SAMPLES.
- * Sorted by ratio descending (most over-estimated categories first).
- */
 export function computeDrift(completedTasks: Task[]): DriftEntry[] {
-  // Accumulate per category
   const map = new Map<
     string,
     { totalActual: number; totalEstimated: number; count: number; category: Category }
   >()
 
   for (const task of completedTasks) {
-    // Both values must exist and be positive to be meaningful
     if (
       task.actual_hours == null ||
       task.estimated_hours == null ||
@@ -104,21 +82,12 @@ export function computeDrift(completedTasks: Task[]): DriftEntry[] {
     })
   }
 
-  // Sort: largest ratio first (most underestimated → most interesting)
   return entries.sort((a, b) => b.ratio - a.ratio)
 }
 
-/**
- * Returns a human-readable Drift string for display in the Reports page.
- *
- * Examples:
- *   ratio 1.4  → "Your Development tasks take 1.4× longer than estimated."
- *   ratio 0.6  → "Your Design tasks take 40% less time than estimated."
- *   ratio 1.05 → "Your Research estimates are spot on."
- */
 export function driftLabel(entry: DriftEntry): string {
   const { category, ratio } = entry
-  const SPOT_ON_TOLERANCE = 0.1   // ±10% = "spot on"
+  const SPOT_ON_TOLERANCE = 0.1
 
   if (Math.abs(ratio - 1.0) <= SPOT_ON_TOLERANCE) {
     return `Your ${category} estimates are spot on.`
@@ -129,21 +98,10 @@ export function driftLabel(entry: DriftEntry): string {
     return `Your ${category} tasks take ${rounded}× longer than estimated.`
   }
 
-  // ratio < 1.0 — faster than estimated
   const pctFaster = Math.round((1 - ratio) * 100)
   return `Your ${category} tasks take ${pctFaster}% less time than estimated.`
 }
 
-/**
- * Given a category and completed tasks, return the suggested actual hours
- * for a new task of that category based on the Drift ratio.
- *
- * Returns null if there aren't enough samples (< MIN_DRIFT_SAMPLES).
- *
- * Usage in TaskModal:
- *   const suggestion = getDriftSuggestion('Development', tasks, 2)
- *   // → { adjustedHours: 2.8, ratio: 1.4, sampleCount: 5 } or null
- */
 export function getDriftSuggestion(
   category: Category,
   allTasks: Task[],
@@ -151,8 +109,6 @@ export function getDriftSuggestion(
 ): { adjustedHours: number; ratio: number; sampleCount: number } | null {
   if (!estimatedHours || estimatedHours <= 0) return null
 
-  // Use ALL completed tasks (not time-ranged) for more robust suggestions —
-  // the more history the better.
   const completedWithBoth = allTasks.filter(
     (t) =>
       t.status === 'Done' &&
@@ -171,9 +127,8 @@ export function getDriftSuggestion(
   if (totalEstimated === 0) return null
 
   const ratio         = totalActual / totalEstimated
-  const adjustedHours = Math.round(estimatedHours * ratio * 4) / 4  // round to nearest 0.25h
+  const adjustedHours = Math.round(estimatedHours * ratio * 4) / 4
 
-  // Don't surface a suggestion if the ratio is within ±10% (spot on)
   if (Math.abs(ratio - 1.0) <= 0.1) return null
 
   return {
@@ -190,44 +145,57 @@ export function generateReportData(
   projects: Project[],
   timeRange: 'week' | 'month' | 'year',
   currentUserId?: string | null,
+  occurrences: TaskOccurrence[] = [],   // ← NEW param (defaults to [] for backward compat)
 ): ReportData {
   const now = new Date()
   const startDate = new Date()
 
   if (timeRange === 'week') {
-    // Monday of the current week
-    const day = now.getDay() // 0=Sun, 1=Mon ... 6=Sat
+    const day = now.getDay()
     const diffToMonday = (day === 0 ? -6 : 1 - day)
     startDate.setDate(now.getDate() + diffToMonday)
     startDate.setHours(0, 0, 0, 0)
   } else if (timeRange === 'month') {
-    // 1st of current month
     startDate.setDate(1)
     startDate.setHours(0, 0, 0, 0)
   } else {
-    // Jan 1 of current year
     startDate.setMonth(0, 1)
     startDate.setHours(0, 0, 0, 0)
   }
 
-  const completedTasks = tasks.filter((task) => {
+  // ── Non-recurring completed tasks in range ────────────────────────────────
+  const nonRecurringCompleted = tasks.filter((task) => {
     if (!task.completed_at) return false
+    if (task.is_recurring) return false   // handled via occurrences below
     if (new Date(task.completed_at) < startDate) return false
-    // Only count tasks the current user personally completed.
-    // Falls back to showing all if currentUserId is unavailable (e.g. loading).
     if (currentUserId && task.completed_by !== currentUserId) return false
     return true
   })
 
-  const tasksCompleted = completedTasks.length
-  // Raw sum — rounded to 2dp on the way out
-  const totalHoursRaw = completedTasks.reduce((sum, task) => {
-    return sum + (task.actual_hours ?? task.estimated_hours ?? 0)
-  }, 0)
+  // ── Recurring occurrences in range ────────────────────────────────────────
+  // Build a lookup so we can enrich occurrences with task metadata (category, project, etc.)
+  const taskMap = new Map(tasks.map((t) => [t.id, t]))
+
+  const recurringOccurrencesInRange = occurrences.filter((o) => {
+    if (new Date(o.completed_at) < startDate) return false
+    if (currentUserId && o.completed_by && o.completed_by !== currentUserId) return false
+    return true
+  })
+
+  // ── Combined counts & hours ───────────────────────────────────────────────
+  const tasksCompleted = nonRecurringCompleted.length + recurringOccurrencesInRange.length
+
+  const nonRecurringHours = nonRecurringCompleted.reduce(
+    (sum, task) => sum + (task.actual_hours ?? task.estimated_hours ?? 0), 0
+  )
+  const recurringHours = recurringOccurrencesInRange.reduce(
+    (sum, o) => sum + (o.actual_hours ?? 0), 0
+  )
+  const totalHoursRaw = nonRecurringHours + recurringHours
 
   const projectsMap = new Map(projects.map((p) => [p.id, p]))
 
-  // Build project map
+  // ── Build by-project map ──────────────────────────────────────────────────
   const byProjectMap = new Map<string, {
     projectId: string
     projectName: string
@@ -237,17 +205,16 @@ export function generateReportData(
     hours: number
   }>()
 
-  for (const task of completedTasks) {
-    const project = projectsMap.get(task.project_id)
-    if (!project) continue
-    const hours   = task.actual_hours ?? task.estimated_hours ?? 0
-    const existing = byProjectMap.get(task.project_id)
+  const addToProjectMap = (projectId: string, hours: number) => {
+    const project = projectsMap.get(projectId)
+    if (!project) return
+    const existing = byProjectMap.get(projectId)
     if (existing) {
       existing.count += 1
       existing.hours += hours
     } else {
-      byProjectMap.set(task.project_id, {
-        projectId:    task.project_id,
+      byProjectMap.set(projectId, {
+        projectId,
         projectName:  project.name,
         projectColor: project.color,
         projectType:  project.type,
@@ -257,21 +224,35 @@ export function generateReportData(
     }
   }
 
-  // Build category map
+  for (const task of nonRecurringCompleted) {
+    addToProjectMap(task.project_id, task.actual_hours ?? task.estimated_hours ?? 0)
+  }
+  for (const o of recurringOccurrencesInRange) {
+    const task = taskMap.get(o.task_id)
+    if (task) addToProjectMap(task.project_id, o.actual_hours ?? 0)
+  }
+
+  // ── Build by-category map ─────────────────────────────────────────────────
   const byCategoryMap = new Map<string, { category: Category; count: number; hours: number }>()
 
-  for (const task of completedTasks) {
-    const hours    = task.actual_hours ?? task.estimated_hours ?? 0
-    const existing = byCategoryMap.get(task.category)
+  const addToCategoryMap = (category: Category, hours: number) => {
+    const existing = byCategoryMap.get(category)
     if (existing) {
       existing.count += 1
       existing.hours += hours
     } else {
-      byCategoryMap.set(task.category, { category: task.category, count: 1, hours })
+      byCategoryMap.set(category, { category, count: 1, hours })
     }
   }
 
-  // Round hours to 2dp in each aggregated row
+  for (const task of nonRecurringCompleted) {
+    addToCategoryMap(task.category, task.actual_hours ?? task.estimated_hours ?? 0)
+  }
+  for (const o of recurringOccurrencesInRange) {
+    const task = taskMap.get(o.task_id)
+    if (task) addToCategoryMap(task.category, o.actual_hours ?? 0)
+  }
+
   const byProject = Array.from(byProjectMap.values()).map((p) => ({
     ...p,
     hours: roundHours(p.hours),
@@ -281,13 +262,19 @@ export function generateReportData(
     hours: roundHours(c.hours),
   }))
 
-  const projectsActive = new Set(completedTasks.map((t) => t.project_id)).size
-  const categoriesUsed = new Set(completedTasks.map((t) => t.category)).size
+  const projectsActive = new Set([
+    ...nonRecurringCompleted.map((t) => t.project_id),
+    ...recurringOccurrencesInRange.map((o) => taskMap.get(o.task_id)?.project_id).filter(Boolean) as string[],
+  ]).size
 
-  // ── Drift (computed from ALL completed tasks for maximum signal) ──────────
-  // Drift: use all-time tasks completed by the current user for maximum signal
+  const categoriesUsed = new Set([
+    ...nonRecurringCompleted.map((t) => t.category),
+    ...recurringOccurrencesInRange.map((o) => taskMap.get(o.task_id)?.category).filter(Boolean) as Category[],
+  ]).size
+
+  // ── Drift: all-time completed (non-recurring only — need est vs actual) ────
   const driftByCategory = computeDrift(
-    tasks.filter((t) => t.status === 'Done' && (!currentUserId || t.completed_by === currentUserId))
+    tasks.filter((t) => t.status === 'Done' && !t.is_recurring && (!currentUserId || t.completed_by === currentUserId))
   )
 
   // ── Insights ──────────────────────────────────────────────────────────────
@@ -312,7 +299,7 @@ export function generateReportData(
       const ratio = topCategoryByHours.hours / topCategoryByHours.count
       const averageEstimate =
         byCategory.reduce((sum, cat) => {
-          const catTasks = completedTasks.filter((t) => t.category === cat.category)
+          const catTasks = nonRecurringCompleted.filter((t) => t.category === cat.category)
           const totalEstimate = catTasks.reduce((s, t) => s + (t.estimated_hours ?? 0), 0)
           return sum + (totalEstimate > 0 ? totalEstimate / catTasks.length : 0)
         }, 0) / byCategory.length
@@ -345,7 +332,8 @@ export function generateReportData(
     byCategory:      byCategory.sort((a, b) => b.hours - a.hours),
     driftByCategory,
     insights,
-    completedTasks:  completedTasks.sort(
+    // completedTasks stays as non-recurring only (for the task list in the report UI)
+    completedTasks:  nonRecurringCompleted.sort(
       (a, b) =>
         new Date(b.completed_at || 0).getTime() -
         new Date(a.completed_at || 0).getTime()

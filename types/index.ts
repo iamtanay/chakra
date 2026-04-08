@@ -142,6 +142,21 @@ export interface Task {
   completed_by: string | null
 }
 
+// ── NEW: one row per completed recurring cycle ────────────────────────────────
+// Written to task_occurrences when a recurring task cycle is confirmed Done.
+// Never pre-created — only written on actual completion.
+export interface TaskOccurrence {
+  id: string
+  task_id: string          // references tasks.id (the master recurring task)
+  due_date: string         // YYYY-MM-DD — which cycle this record represents
+  status: string           // 'Done' always for now
+  actual_hours: number | null
+  completion_note: string | null
+  completed_at: string     // full ISO timestamp
+  completed_by: string | null
+  created_at: string
+}
+
 export interface DailyPulse {
   tasks_completed_today: number
   hours_today: number

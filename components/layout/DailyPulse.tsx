@@ -1,64 +1,86 @@
 'use client'
 
-import type { Task, Project } from '@/types'
+import type { Task, Project, TaskOccurrence } from '@/types'
 import { useMemo } from 'react'
-import { CheckCircle2, Clock, Layers, FolderDot } from 'lucide-react'
+import { CheckCircle2, Clock, FolderDot, Layers } from 'lucide-react'
 
 interface DailyPulseProps {
   tasks: Task[]
   projects: Project[]
+  occurrences: TaskOccurrence[]   // ← NEW: recurring cycle completions
   selectedProjectId?: string | null
   currentUserId?: string | null
 }
 
-/**
- * Round a raw hours value to exactly 2 decimal places.
- * 0.25 hrs → "0.25",  0.3333 → "0.33",  1.0 → "1.00"
- */
 function fmtHours(raw: number): string {
   return (Math.round(raw * 100) / 100).toFixed(2)
 }
 
-export function DailyPulse({ tasks, projects, selectedProjectId, currentUserId }: DailyPulseProps) {
+export function DailyPulse({ tasks, projects, occurrences, selectedProjectId, currentUserId }: DailyPulseProps) {
   const pulse = useMemo(() => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
 
-    // Filter by selected project if one is chosen
+    // ── Non-recurring tasks completed today ───────────────────────────────
     const scopedTasks = selectedProjectId
       ? tasks.filter((t) => t.project_id === selectedProjectId)
       : tasks
 
-    const completedToday = scopedTasks.filter((t) => {
+    const nonRecurringDoneToday = scopedTasks.filter((t) => {
       if (t.status !== 'Done') return false
+      if (t.is_recurring) return false   // recurring hours come from occurrences
       if (!t.completed_at) return false
-      // Only count tasks completed by the current user
       if (currentUserId && t.completed_by && t.completed_by !== currentUserId) return false
       const d = new Date(t.completed_at)
       d.setHours(0, 0, 0, 0)
-      return d.getTime() === today.getTime()
+      return d.getTime() === todayStart.getTime()
     })
 
-    // Sum hours — raw float, formatted to 2dp at render time
-    const hoursRaw = completedToday.reduce(
+    // ── Recurring cycles completed today (from task_occurrences) ──────────
+    // We need to join back to tasks to apply the project filter.
+    // Build a fast lookup: task_id → project_id
+    const taskProjectMap = new Map(tasks.map((t) => [t.id, t.project_id]))
+
+    const recurringDoneToday = occurrences.filter((o) => {
+      if (currentUserId && o.completed_by && o.completed_by !== currentUserId) return false
+      const d = new Date(o.completed_at)
+      d.setHours(0, 0, 0, 0)
+      if (d.getTime() !== todayStart.getTime()) return false
+      if (selectedProjectId) {
+        const projectId = taskProjectMap.get(o.task_id)
+        if (projectId !== selectedProjectId) return false
+      }
+      return true
+    })
+
+    // ── Totals ────────────────────────────────────────────────────────────
+    const count = nonRecurringDoneToday.length + recurringDoneToday.length
+
+    const nonRecurringHours = nonRecurringDoneToday.reduce(
       (s, t) => s + (t.actual_hours ?? t.estimated_hours ?? 0), 0
     )
+    const recurringHours = recurringDoneToday.reduce(
+      (s, o) => s + (o.actual_hours ?? 0), 0
+    )
+    const hoursRaw = nonRecurringHours + recurringHours
 
-    // Unique projects touched today (only meaningful in All-projects view)
-    const uniqueProjectIds = new Set(completedToday.map((t) => t.project_id))
+    // ── Projects touched today ────────────────────────────────────────────
+    const uniqueProjectIds = new Set([
+      ...nonRecurringDoneToday.map((t) => t.project_id),
+      ...recurringDoneToday.map((o) => taskProjectMap.get(o.task_id)).filter(Boolean) as string[],
+    ])
     const projectsTodayCount = uniqueProjectIds.size
 
     return {
-      count:              completedToday.length,
+      count,
       hoursFormatted:     fmtHours(hoursRaw),
       hoursRaw,
       projectsTodayCount,
-      // Pass the names of projects touched today for the tooltip
       projectsTodayNames: Array.from(uniqueProjectIds)
         .map((id) => projects.find((p) => p.id === id)?.name)
         .filter(Boolean) as string[],
     }
-  }, [tasks, projects, selectedProjectId])
+  }, [tasks, projects, occurrences, selectedProjectId, currentUserId])
 
   const scopeLabel = selectedProjectId
     ? (projects.find((p) => p.id === selectedProjectId)?.name ?? 'Space')
@@ -94,11 +116,6 @@ export function DailyPulse({ tasks, projects, selectedProjectId, currentUserId }
         </span>
       </div>
 
-      {/*
-        Projects touched today — only show in "All" view and only if tasks were done
-        across more than one project (single-project context already has the project name
-        in the scope pill on the right, so this would be redundant).
-      */}
       {!selectedProjectId && pulse.count > 0 && pulse.projectsTodayCount > 0 && (
         <>
           <div className="w-px h-4" style={{ background: 'var(--border)' }} />

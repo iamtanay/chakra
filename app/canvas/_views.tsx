@@ -17,7 +17,7 @@ import { ProjectSwitcher } from '@/components/ui/ProjectSwitcher'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useView } from '@/lib/viewContext'
 import { Plus, LayoutDashboard, List, CalendarDays } from 'lucide-react'
-import type { Task, Project, Status, ProjectMember } from '@/types'
+import type { Task, Project, Status, ProjectMember, TaskOccurrence } from '@/types'
 import {
   shouldShowRecurringTask,
   advanceRecurringCycle,
@@ -41,27 +41,21 @@ export default function ViewsPage() {
   const router       = useRouter()
   const { view, setView } = useView()
 
-  // useMediaQuery initialises to `false` (SSR-safe), so we must wait until
-  // it has actually evaluated against the real viewport before deciding
-  // whether to force kanban. Without the `mounted` guard, the effect would
-  // always fire with isMobile=false on the first render and clobber whatever
-  // view the user chose from the BottomNav sheet.
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
 
-  // On desktop (web), always force Board/Kanban view.
-  // On mobile, respect whatever view the user selected via the BottomNav sheet.
   useEffect(() => {
-    if (!mounted) return        // wait for real viewport value
+    if (!mounted) return
     if (!isMobile) setView('kanban')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, isMobile])
 
-  const [tasks,         setTasks]         = useState<Task[]>([])
-  const [projects,      setProjects]      = useState<Project[]>([])
-  const [members,       setMembers]       = useState<ProjectMember[]>([])
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [loading,       setLoading]       = useState(true)
+  const [tasks,           setTasks]           = useState<Task[]>([])
+  const [projects,        setProjects]        = useState<Project[]>([])
+  const [members,         setMembers]         = useState<ProjectMember[]>([])
+  const [occurrences,     setOccurrences]     = useState<TaskOccurrence[]>([])
+  const [currentUserId,   setCurrentUserId]   = useState<string | null>(null)
+  const [loading,         setLoading]         = useState(true)
 
   const [modalOpen,     setModalOpen]     = useState(false)
   const [editingTask,   setEditingTask]   = useState<Task | null>(null)
@@ -75,7 +69,6 @@ export default function ViewsPage() {
     return () => clearTimeout(t)
   }, [])
 
-  // URL-driven project selection — applies to all views
   const selectedProjectId = searchParams.get('project') ?? null
 
   const setSelectedProjectId = (id: string | null) => {
@@ -97,10 +90,12 @@ export default function ViewsPage() {
         { data: pd, error: pe },
         { data: td, error: te },
         { data: md },
+        { data: od },  // task_occurrences
       ] = await Promise.all([
         db('projects').select('*'),
         db('tasks').select('*'),
         db('project_members').select('*'),
+        db('task_occurrences').select('*'),
       ])
 
       if (pe) throw pe
@@ -109,6 +104,7 @@ export default function ViewsPage() {
       setProjects((pd || []) as Project[])
       setTasks((td || []) as Task[])
       setMembers((md || []) as ProjectMember[])
+      setOccurrences((od || []) as TaskOccurrence[])
     } catch (err) {
       console.error('Views load error:', err)
     } finally {
@@ -149,7 +145,8 @@ export default function ViewsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingTask, projects, members, currentUserId, canWrite])
 
-  // Project filter applies to ALL views
+  // filteredTasks: used by board/list/mobile — applies lead-window filter so
+  // recurring tasks only appear on the board when they're approaching due date.
   const filteredTasks = useMemo(() => {
     const today = todayLocal()
     const projectFiltered = selectedProjectId
@@ -160,6 +157,13 @@ export default function ViewsPage() {
       return shouldShowRecurringTask(t, today)
     })
   }, [tasks, selectedProjectId])
+
+  // calendarTasks: used ONLY by CalendarView — project-filtered but NOT lead-window
+  // filtered, so every recurring task is available for expansion across all dates.
+  // CalendarView handles its own internal project filter, so we pass the raw full list.
+  const calendarTasks = useMemo(() =>
+    tasks, // CalendarView does its own selectedProjectId filter internally
+  [tasks])
 
   const openCreateModal = (status: Status = 'Todo') => {
     if (!canWrite) return
@@ -329,20 +333,51 @@ export default function ViewsPage() {
       setLogoSpin('loop')
 
       if (task.is_recurring) {
+        const cycleDate = task.next_due_date ?? toISODate(todayLocal())
+        const now       = new Date().toISOString()
+
+        // ── Step A: write the occurrence record ───────────────────────────
+        // This is the key addition — every completed cycle becomes a permanent
+        // historical row in task_occurrences, preserving hours and notes.
+        const occurrencePayload = {
+          task_id:         task.id,
+          due_date:        cycleDate,
+          status:          'Done',
+          actual_hours:    hours,
+          completion_note: note,
+          completed_at:    now,
+          completed_by:    currentUserId,
+        }
+        const { data: newOccurrence, error: occErr } = await db('task_occurrences')
+          .insert([occurrencePayload])
+          .select()
+          .single()
+
+        if (occErr) {
+          // If the occurrence already exists (unique constraint on task_id + due_date),
+          // that's fine — it means this cycle was already recorded. Log and continue.
+          console.warn('Occurrence insert skipped (may already exist):', occErr.message)
+        } else if (newOccurrence) {
+          setOccurrences((prev) => [...prev, newOccurrence as TaskOccurrence])
+        }
+
+        // ── Step B: advance the master record to the next cycle ───────────
         const advanced = advanceRecurringCycle(task)
         const dbUpdate = {
           status:               advanced.status,
-          actual_hours:         null,
-          completed_at:         null,
+          actual_hours:         null,   // reset — historical value is in task_occurrences
+          completed_at:         null,   // reset
           today_flag:           false,
           last_completed_cycle: advanced.last_completed_cycle,
           next_due_date:        advanced.next_due_date,
           current_streak:       advanced.current_streak,
-          completion_note:      null,
+          completion_note:      null,   // reset
         }
         setTasks((prev) => prev.map((t) => t.id === task.id ? advanced : t))
         await db('tasks').update(dbUpdate).eq('id', task.id)
+
       } else {
+        // ── Non-recurring: unchanged from before ──────────────────────────
         const now = new Date().toISOString()
         const updated: Task = {
           ...task,
@@ -399,7 +434,6 @@ export default function ViewsPage() {
   const hasProjects = projects.length > 0
   const { label: viewLabel } = VIEW_LABELS[view]
 
-  // View switcher — desktop only
   const ViewSwitcher = (
     <div
       className="hidden md:flex rounded-xl overflow-hidden"
@@ -433,16 +467,13 @@ export default function ViewsPage() {
       selectedProjectId={selectedProjectId}
       onProjectSelect={setSelectedProjectId}
     >
-      {/* Unified top bar — consistent for ALL views */}
       <PageTopBar
         title={viewLabel}
         logoSpin={logoSpin}
         actions={
           <>
-            {/* View switcher — desktop only */}
             {ViewSwitcher}
 
-            {/* Project filter — always shown for all views */}
             {hasProjects && (
               <ProjectSwitcher
                 projects={projects}
@@ -453,7 +484,6 @@ export default function ViewsPage() {
               />
             )}
 
-            {/* Add task — always shown for all views */}
             {canWrite && (
               <button
                 onClick={() => openCreateModal('Todo')}
@@ -468,10 +498,15 @@ export default function ViewsPage() {
         }
       />
 
-      {/* DailyPulse — shown for ALL views */}
-      <DailyPulse tasks={tasks} projects={projects} selectedProjectId={selectedProjectId} currentUserId={currentUserId} />
+      {/* Pass occurrences to DailyPulse so it can include recurring hours */}
+      <DailyPulse
+        tasks={tasks}
+        projects={projects}
+        occurrences={occurrences}
+        selectedProjectId={selectedProjectId}
+        currentUserId={currentUserId}
+      />
 
-      {/* Content area */}
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {!hasProjects ? (
           <div className="flex flex-col items-center justify-center h-full gap-4">
@@ -528,7 +563,7 @@ export default function ViewsPage() {
           />
         ) : (
           <CalendarView
-            tasks={filteredTasks}
+            tasks={calendarTasks}
             projects={projects}
             selectedProjectId={selectedProjectId}
             onCardClick={openEditModal}
