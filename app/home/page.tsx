@@ -136,17 +136,26 @@ export default function HomePage() {
       }).length
 
     if (timeRange === 'week') {
-      const days: { label: string; shortLabel: string; date: string; count: number; isToday: boolean }[] = []
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now)
-        d.setDate(now.getDate() - i)
+      const days: { label: string; shortLabel: string; date: string; count: number; isToday: boolean; isFuture: boolean }[] = []
+      // Compute Monday of the current week (matches insights.ts week-start logic)
+      const dayOfWeek = now.getDay() // 0=Sun..6=Sat
+      const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+      const monday = new Date(now)
+      monday.setDate(now.getDate() + diffToMonday)
+      monday.setHours(0, 0, 0, 0)
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(monday)
+        d.setDate(monday.getDate() + i)
         const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+        const isToday = iso === todayISO
+        const isFuture = d > now && !isToday
         days.push({
           label:      d.toLocaleDateString('en-US', { weekday: 'long' }),
           shortLabel: d.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2),
           date:    iso,
-          count:   taskCount(iso),
-          isToday: i === 0,
+          count:   isFuture ? 0 : taskCount(iso),
+          isToday,
+          isFuture,
         })
       }
       return { type: 'week' as const, days }
@@ -548,17 +557,17 @@ export default function HomePage() {
                           const barH = Math.max(heightPct * 56, day.count > 0 ? 6 : 2)
                           const isBest = day.count > 0 && day.count === maxInPeriod
                           return (
-                            <div key={day.date} className="flex-1 flex flex-col items-center justify-end gap-1.5">
+                            <div key={day.date} className="flex-1 flex flex-col items-center justify-end gap-1.5" style={{ opacity: day.isFuture ? 0.3 : 1 }}>
                               <span className="font-mono transition-opacity duration-300" style={{ fontSize: 10, color: isBest ? 'var(--amber)' : 'var(--text3)', opacity: day.count > 0 ? 1 : 0 }}>
                                 {day.count > 0 ? day.count : ''}
                               </span>
                               <div
                                 className="w-full rounded-t-md transition-all duration-700"
                                 style={{
-                                  height: barH,
-                                  background: cellBg(day.count, day.isToday || isBest, false),
-                                  boxShadow: cellGlow(day.count, day.isToday || isBest),
-                                  opacity: day.count === 0 ? 0.35 : 1,
+                                  height: day.isFuture ? 2 : barH,
+                                  background: day.isFuture ? 'var(--border)' : cellBg(day.count, day.isToday || isBest, false),
+                                  boxShadow: day.isFuture ? undefined : cellGlow(day.count, day.isToday || isBest),
+                                  opacity: day.isFuture ? 1 : (day.count === 0 ? 0.35 : 1),
                                 }}
                               />
                               <span className="font-mono" style={{ fontSize: 10, color: day.isToday ? 'var(--amber)' : 'var(--text3)', fontWeight: day.isToday ? 700 : 400 }}>
