@@ -4,12 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Logo } from '@/components/ui/Logo'
-import { LayoutDashboard, Star, BarChart3, Zap, Users, Target } from 'lucide-react'
+import { LayoutDashboard, Star, BarChart3, Zap, Users, Waves } from 'lucide-react'
 
 const FEATURES = [
   {
     Icon: LayoutDashboard,
-    title: 'Visual Flow',
+    title: 'Visual Boards',
     desc:  'Move tasks across a board that fits how you actually think — not how a template says you should.',
     color: 'var(--amber)',
     dim:   'var(--amber-dim)',
@@ -22,40 +22,40 @@ const FEATURES = [
     dim:   'var(--teal-dim)',
   },
   {
-    Icon: BarChart3,
-    title: 'Your Telemetry',
-    desc:  'Understand where your time actually goes. Not estimates — real data from real work.',
+    Icon: Waves,
+    title: 'Streams',
+    desc:  'Living collections of checklists, notes, and links. Share them, section them, reorder them.',
     color: 'var(--violet)',
     dim:   'var(--violet-dim)',
   },
   {
     Icon: Zap,
     title: 'Drift Insight',
-    desc:  'Know which types of work always take longer than expected. Get sharper at planning.',
+    desc:  'Know which types of work always takes longer than expected. Get sharper at planning.',
     color: 'var(--rose)',
     dim:   'var(--rose-dim)',
+  },
+  {
+    Icon: BarChart3,
+    title: 'Your Telemetry',
+    desc:  'Understand where your time actually goes. Not estimates — real data from real work.',
+    color: 'var(--amber)',
+    dim:   'var(--amber-dim)',
   },
   {
     Icon: Users,
     title: 'Share Spaces',
     desc:  'Bring in a collaborator without handing over the whole workspace. Control who sees what.',
-    color: 'var(--amber)',
-    dim:   'var(--amber-dim)',
-  },
-  {
-    Icon: Target,
-    title: 'Habit Streaks',
-    desc:  'Recurring tasks that build momentum. Show up consistently — the data proves it.',
     color: 'var(--teal)',
     dim:   'var(--teal-dim)',
   },
 ]
 
 const MOBILE_PILLS = [
-  { label: 'Visual boards',   color: 'var(--amber)'  },
-  { label: 'Time telemetry',  color: 'var(--teal)'   },
-  { label: 'Habit streaks',   color: 'var(--violet)' },
-  { label: 'Drift insight',   color: 'var(--rose)'   },
+  { label: 'Visual boards',  color: 'var(--amber)'  },
+  { label: 'Streams',        color: 'var(--violet)' },
+  { label: 'Time telemetry', color: 'var(--teal)'   },
+  { label: 'Drift insight',  color: 'var(--rose)'   },
 ]
 
 /** Matches the Sidebar exactly: <Logo size={26} />, gap-3, font-cinzel font-600 tracking-[0.22em] */
