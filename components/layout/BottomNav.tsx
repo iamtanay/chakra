@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, Orbit, Home, Star, ArrowUp,
+  LayoutDashboard, Orbit, Home, Star, ChevronsUp,
   Sun, Moon, SunMoon, LogOut, X, Pencil, Check,
   List, CalendarDays, Waves,
 } from 'lucide-react'
@@ -179,7 +179,7 @@ export function BottomNav() {
                 style={{ background: 'var(--amber)' }}
               />
             )}
-            <ArrowUp
+            <ChevronsUp
               size={20}
               style={{ color: moreActive ? 'var(--amber)' : 'var(--text3)' }}
             />
