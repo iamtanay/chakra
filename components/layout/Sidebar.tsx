@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Logo } from '@/components/ui/Logo'
-import { LogOut, LayoutDashboard, Orbit, Home, Star, Sun, Moon, SunMoon, Pencil, Check, X, ChevronUp } from 'lucide-react'
+import { LogOut, LayoutDashboard, Orbit, Home, Star, Sun, Moon, SunMoon, Pencil, Check, X, ChevronUp, Waves } from 'lucide-react'
 import type { Project } from '@/types'
 import { useTheme } from '@/hooks/useTheme'
 import { useView } from '@/lib/viewContext'
@@ -17,14 +17,15 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS = [
-  { href: '/home',   label: 'Home',  Icon: Home           },
-  { href: '/canvas',   label: 'Canvas',  Icon: LayoutDashboard },
-  { href: '/today',  label: 'Today', Icon: Star            },
-  { href: '/spaces', label: 'Spaces', Icon: Orbit     },
+  { href: '/home',    label: 'Home',    Icon: Home            },
+  { href: '/canvas',  label: 'Canvas',  Icon: LayoutDashboard },
+  { href: '/today',   label: 'Today',   Icon: Star            },
+  { href: '/streams', label: 'Streams', Icon: Waves           },
+  { href: '/spaces',  label: 'Spaces',  Icon: Orbit           },
 ]
 
 
-export function Sidebar({ projects, selectedProjectId, onProjectSelect }: SidebarProps) {
+export function Sidebar({ projects = [], selectedProjectId, onProjectSelect }: SidebarProps) {
   const router   = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -96,7 +97,6 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
     if (projectId === null) {
       router.push('/canvas')
     } else {
-      // Clicking a project in sidebar always opens kanban view
       setView('kanban')
       router.push(`/canvas?project=${projectId}`)
     }
@@ -145,7 +145,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
       {/* Nav */}
       <nav className="px-3 pt-3 space-y-1">
         {NAV_ITEMS.map(({ href, label, Icon }) => {
-          const active = pathname === href
+          const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
               key={href}
@@ -183,7 +183,7 @@ export function Sidebar({ projects, selectedProjectId, onProjectSelect }: Sideba
         })}
       </nav>
 
-      {/* Spaces */}
+      {/* Spaces sub-list */}
       {projects.length > 0 && (
         <div
           className="mt-3 mx-3 pt-3 flex-1 overflow-y-auto"
