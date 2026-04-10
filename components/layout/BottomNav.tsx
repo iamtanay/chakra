@@ -17,10 +17,10 @@ import { NotificationToggle } from '@/components/ui/NotificationToggle'
 // More sheet contains: Spaces, theme, notifications, logout.
 
 const NAV_ITEMS = [
-  { href: '/home',    label: 'Home',    Icon: Home            },
-  { href: '/canvas',  label: 'Canvas',  Icon: LayoutDashboard },
-  { href: '/today',   label: 'Today',   Icon: Star            },
-  { href: '/streams', label: 'Streams', Icon: Waves           },
+  { href: '/home',    label: 'Home',    Icon: Home,            tourId: 'nav-home'    },
+  { href: '/canvas',  label: 'Canvas',  Icon: LayoutDashboard, tourId: 'nav-canvas'  },
+  { href: '/today',   label: 'Today',   Icon: Star,            tourId: 'nav-today'   },
+  { href: '/streams', label: 'Streams', Icon: Waves,           tourId: 'nav-streams' },
 ]
 
 const VIEW_OPTIONS: { value: ViewMode; label: string; Icon: React.ElementType; desc: string }[] = [
@@ -108,7 +108,7 @@ export function BottomNav() {
         }}
       >
         <div className="flex items-center">
-          {NAV_ITEMS.map(({ href, label, Icon }) => {
+          {NAV_ITEMS.map(({ href, label, Icon, tourId }) => {
             const active = pathname === href || pathname.startsWith(href + '/')
 
             // Canvas tab: tapping opens views sheet
@@ -116,6 +116,7 @@ export function BottomNav() {
               return (
                 <button
                   key={href}
+                  data-tour={tourId}
                   onClick={() => { setMoreOpen(false); setViewsOpen(true) }}
                   className="flex flex-col items-center justify-center gap-1.5 flex-1 py-3 transition-all duration-150 relative"
                   style={{ minHeight: 56 }}
@@ -141,6 +142,7 @@ export function BottomNav() {
               <Link
                 key={href}
                 href={href}
+                data-tour={tourId}
                 className="flex flex-col items-center justify-center gap-1.5 flex-1 py-3 transition-all duration-150 relative"
                 style={{ minHeight: 56 }}
               >
@@ -169,6 +171,7 @@ export function BottomNav() {
 
           {/* More button */}
           <button
+            data-tour="more-button"
             onClick={() => { setViewsOpen(false); setMoreOpen(true); setLogoutConfirm(false) }}
             className="flex flex-col items-center justify-center gap-1.5 flex-1 py-3 transition-all duration-150 relative"
             style={{ minHeight: 56 }}
@@ -365,6 +368,7 @@ export function BottomNav() {
               {/* Spaces link */}
               <Link
                 href="/spaces"
+                data-tour="nav-spaces"
                 onClick={() => setMoreOpen(false)}
                 className="flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-150"
                 style={{
@@ -423,7 +427,9 @@ export function BottomNav() {
               </div>
 
               {/* Notification toggle */}
-              <NotificationToggle />
+              <div data-tour="notif-toggle">
+                <NotificationToggle />
+              </div>
 
               {/* Logout */}
               <button

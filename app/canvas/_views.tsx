@@ -436,6 +436,7 @@ export default function ViewsPage() {
 
   const ViewSwitcher = (
     <div
+      data-tour="view-switcher"
       className="hidden md:flex rounded-xl overflow-hidden"
       style={{ background: 'var(--bg3)', border: '1px solid var(--border)', gap: '1px' }}
     >

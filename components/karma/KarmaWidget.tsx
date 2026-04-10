@@ -459,7 +459,7 @@ export function KarmaWidget({ userId, compact = false }: KarmaWidgetProps) {
 
   // ── Compact / Home ─────────────────────────────────────────────────────────
   if (compact) return (
-    <div className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+    <div data-tour="karma-widget" className="rounded-2xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Sparkles size={13} style={{ color: 'var(--violet)' }} />

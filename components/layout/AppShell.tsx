@@ -28,6 +28,7 @@
 
 import { Sidebar } from '@/components/layout/Sidebar'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import type { Project } from '@/types'
 
 interface AppShellProps {
@@ -56,6 +57,9 @@ export function AppShell({ children, projects, selectedProjectId, onProjectSelec
 
       {/* BottomNav — mobile only, fixed, renders once */}
       <BottomNav />
+
+      {/* Onboarding tour — fires once on web, once on mobile */}
+      <OnboardingTour />
     </div>
   )
 }

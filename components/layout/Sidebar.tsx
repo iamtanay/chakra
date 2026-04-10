@@ -17,11 +17,11 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS = [
-  { href: '/home',    label: 'Home',    Icon: Home            },
-  { href: '/canvas',  label: 'Canvas',  Icon: LayoutDashboard },
-  { href: '/today',   label: 'Today',   Icon: Star            },
-  { href: '/streams', label: 'Streams', Icon: Waves           },
-  { href: '/spaces',  label: 'Spaces',  Icon: Orbit           },
+  { href: '/home',    label: 'Home',    Icon: Home,            tourId: 'nav-home'    },
+  { href: '/canvas',  label: 'Canvas',  Icon: LayoutDashboard, tourId: 'nav-canvas'  },
+  { href: '/today',   label: 'Today',   Icon: Star,            tourId: 'nav-today'   },
+  { href: '/streams', label: 'Streams', Icon: Waves,           tourId: 'nav-streams' },
+  { href: '/spaces',  label: 'Spaces',  Icon: Orbit,           tourId: 'nav-spaces'  },
 ]
 
 
@@ -144,12 +144,13 @@ export function Sidebar({ projects = [], selectedProjectId, onProjectSelect }: S
 
       {/* Nav */}
       <nav className="px-3 pt-3 space-y-1">
-        {NAV_ITEMS.map(({ href, label, Icon }) => {
+        {NAV_ITEMS.map(({ href, label, Icon, tourId }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
               key={href}
               href={href}
+              data-tour={tourId}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group relative"
               style={{
                 background:  active ? 'var(--bg4)'    : 'transparent',
@@ -186,6 +187,7 @@ export function Sidebar({ projects = [], selectedProjectId, onProjectSelect }: S
       {/* Spaces sub-list */}
       {projects.length > 0 && (
         <div
+          data-tour="project-switcher"
           className="mt-3 mx-3 pt-3 flex-1 overflow-y-auto"
           style={{ borderTop: '1px solid var(--border)' }}
         >
@@ -243,7 +245,7 @@ export function Sidebar({ projects = [], selectedProjectId, onProjectSelect }: S
       )}
 
       {/* Bottom section */}
-      <div className="px-3 pt-2 pb-3 mt-auto flex-shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
+      <div className="px-3 pt-2 pb-3 mt-auto flex-shrink-0" data-tour="notif-toggle" style={{ borderTop: '1px solid var(--border)' }}>
         <div ref={userMenuRef} className="relative">
 
           {userMenuOpen && (

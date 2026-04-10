@@ -88,6 +88,7 @@ export function DailyPulse({ tasks, projects, occurrences, selectedProjectId, cu
 
   return (
     <div
+      data-tour="daily-pulse"
       className="flex items-center gap-6 px-5 md:px-6 h-11 flex-shrink-0"
       style={{
         background:   'var(--bg2)',
