@@ -211,9 +211,23 @@ export function shouldShowRecurringTask(task: Task, today: Date = todayLocal()):
  * Called after the user confirms completion of the current cycle.
  * The returned object is ready to be saved to the database.
  *
- * What changes:
+ * THE KEY FIX: we advance from max(currentDueDate, today), NOT always from today.
+ *
+ * Why this matters:
+ *   • Early completion (today < dueDate): dueDate > today, so we advance from
+ *     dueDate. This skips the current due date and lands on the correct NEXT
+ *     occurrence. Example: completing a Friday task on Thursday advances from
+ *     Friday → schedules NEXT Friday (7 days out), not this Friday (1 day out)
+ *     which would still be inside the 2-day lead window and cause the task to
+ *     reappear immediately on the board.
+ *   • On-time completion (today === dueDate): advanceFrom === dueDate === today,
+ *     same result as before — no behaviour change.
+ *   • Late/overdue completion (today > dueDate): today > dueDate, so we advance
+ *     from today. This avoids scheduling the next cycle in the past.
+ *
+ * What changes in the returned task:
  *   - last_completed_cycle  = today (ISO date string)
- *   - next_due_date         = next occurrence after today
+ *   - next_due_date         = next occurrence after max(dueDate, today)
  *   - status                = 'Todo'
  *   - actual_hours          = null  (reset for new cycle)
  *   - completed_at          = null  (reset for new cycle)
@@ -222,8 +236,13 @@ export function shouldShowRecurringTask(task: Task, today: Date = todayLocal()):
  *   - current_streak        = incremented if completed on time, reset to 0 if overdue
  */
 export function advanceRecurringCycle(task: Task): Task {
-  const today    = todayLocal()
-  const nextDate = computeNextDueDate(task, today)
+  const today   = todayLocal()
+  const dueDate = task.next_due_date ? parseLocalDate(task.next_due_date) : today
+
+  // Advance from the later of the two dates so that early completions skip
+  // the current cycle's due date rather than finding it as the "next" one.
+  const advanceFrom = dueDate > today ? dueDate : today
+  const nextDate    = computeNextDueDate(task, advanceFrom)
 
   // ── Momentum: determine if this cycle was completed on time ──────────────
   // "On time" means today <= next_due_date (i.e. not overdue).
